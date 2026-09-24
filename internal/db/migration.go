@@ -27,7 +27,20 @@ func RunMigrations(db *gorm.DB) error {
 	return runMigrations(db, migrationFiles.FS)
 }
 
+// 数据迁移在模型结构就绪后执行，独立维护版本号避免与结构迁移冲突。
+func runDataMigrations(db *gorm.DB) error {
+	dataFS, err := fs.Sub(migrationFiles.FS, "data")
+	if err != nil {
+		return fmt.Errorf("open data migrations: %w", err)
+	}
+	return runMigrationsWithLedger(db, dataFS, "data_migrations")
+}
+
 func runMigrations(db *gorm.DB, migrationFS fs.FS) error {
+	return runMigrationsWithLedger(db, migrationFS, "schema_migrations")
+}
+
+func runMigrationsWithLedger(db *gorm.DB, migrationFS fs.FS, ledger string) error {
 	dialect := migrationDialect(db)
 	migrations, err := readMigrations(migrationFS, dialect)
 	if err != nil {
@@ -39,15 +52,18 @@ func runMigrations(db *gorm.DB, migrationFS fs.FS) error {
 				return fmt.Errorf("lock schema migrations: %w", err)
 			}
 		}
-		if err := ensureSchemaMigrations(tx, dialect); err != nil {
+		if err := ensureMigrationLedger(tx, dialect, ledger); err != nil {
 			return err
 		}
-		applied, err := appliedMigrationVersions(tx)
+		applied, err := appliedMigrationNames(tx, ledger)
 		if err != nil {
 			return err
 		}
 		for _, migration := range migrations {
-			if applied[migration.Version] {
+			if name, exists := applied[migration.Version]; exists {
+				if name != migration.Name {
+					return fmt.Errorf("migration ledger %s version %d is already assigned to %q, not %q", ledger, migration.Version, name, migration.Name)
+				}
 				continue
 			}
 			if sql := strings.TrimSpace(migration.SQL); sql != "" {
@@ -56,7 +72,7 @@ func runMigrations(db *gorm.DB, migrationFS fs.FS) error {
 				}
 			}
 			if err := tx.Exec(
-				"INSERT INTO schema_migrations (version, name) VALUES (?, ?)",
+				"INSERT INTO "+ledger+" (version, name) VALUES (?, ?)",
 				migration.Version,
 				migration.Name,
 			).Error; err != nil {
@@ -128,19 +144,22 @@ func readMigrations(migrationFS fs.FS, dialect string) ([]migration, error) {
 	return migrations, nil
 }
 
-func ensureSchemaMigrations(db *gorm.DB, dialect string) error {
+func ensureMigrationLedger(db *gorm.DB, dialect, ledger string) error {
+	if ledger != "schema_migrations" && ledger != "data_migrations" {
+		return fmt.Errorf("unsupported migration ledger %q", ledger)
+	}
 	var sql string
 	switch dialect {
 	case "postgres":
 		sql = `
-CREATE TABLE IF NOT EXISTS schema_migrations (
+CREATE TABLE IF NOT EXISTS ` + ledger + ` (
 	version BIGINT PRIMARY KEY,
 	name TEXT NOT NULL,
 	applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 )`
 	case "sqlite":
 		sql = `
-CREATE TABLE IF NOT EXISTS schema_migrations (
+CREATE TABLE IF NOT EXISTS ` + ledger + ` (
 	version INTEGER PRIMARY KEY,
 	name TEXT NOT NULL,
 	applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -149,25 +168,29 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 		return fmt.Errorf("unsupported database dialect %q", dialect)
 	}
 	if err := db.Exec(sql).Error; err != nil {
-		return fmt.Errorf("ensure schema_migrations: %w", err)
+		return fmt.Errorf("ensure %s: %w", ledger, err)
 	}
 	return nil
 }
 
-func appliedMigrationVersions(db *gorm.DB) (map[uint64]bool, error) {
-	rows, err := db.Raw("SELECT version FROM schema_migrations").Rows()
+func appliedMigrationNames(db *gorm.DB, ledger string) (map[uint64]string, error) {
+	if ledger != "schema_migrations" && ledger != "data_migrations" {
+		return nil, fmt.Errorf("unsupported migration ledger %q", ledger)
+	}
+	rows, err := db.Raw("SELECT version, name FROM " + ledger).Rows()
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	applied := map[uint64]bool{}
+	applied := map[uint64]string{}
 	for rows.Next() {
 		var version uint64
-		if err := rows.Scan(&version); err != nil {
+		var name string
+		if err := rows.Scan(&version, &name); err != nil {
 			return nil, err
 		}
-		applied[version] = true
+		applied[version] = name
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

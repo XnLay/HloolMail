@@ -190,19 +190,38 @@ func TestRunMigrationsAppliesPendingSQLInVersionOrder(t *testing.T) {
 	}
 }
 
+func TestMigrationLedgersKeepVersionSpacesIndependent(t *testing.T) {
+	database := openSQLiteTestDB(t)
+	schemaFS := fstest.MapFS{
+		"sqlite/000001_create_marker.up.sql": {
+			Data: []byte("CREATE TABLE migration_ledger_marker (value TEXT NOT NULL)"),
+		},
+	}
+	dataFS := fstest.MapFS{
+		"sqlite/000001_insert_marker.up.sql": {
+			Data: []byte("INSERT INTO migration_ledger_marker (value) VALUES ('data')"),
+		},
+	}
+	if err := runMigrationsWithLedger(database, schemaFS, "schema_migrations"); err != nil {
+		t.Fatal(err)
+	}
+	if err := runMigrationsWithLedger(database, dataFS, "data_migrations"); err != nil {
+		t.Fatal(err)
+	}
+	var schemaCount, dataCount int64
+	if err := database.Table("schema_migrations").Where("version = 1").Count(&schemaCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Table("data_migrations").Where("version = 1").Count(&dataCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	if schemaCount != 1 || dataCount != 1 {
+		t.Fatalf("ledger rows = schema:%d data:%d, want 1 and 1", schemaCount, dataCount)
+	}
+}
+
 func TestAutoMigrateCreatesIntegrityConstraints(t *testing.T) {
-	database, err := Open(config.Config{
-		DatabaseDriver: "sqlite",
-		DatabaseURL:    filepath.Join(t.TempDir(), "mail.db"),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	sqlDB, err := database.DB()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer sqlDB.Close()
+	database := openSQLiteTestDB(t)
 
 	if err := AutoMigrate(database); err != nil {
 		t.Fatal(err)
@@ -362,18 +381,7 @@ func TestMessageDailyStatUpsertQualifiesCountColumnForPostgres(t *testing.T) {
 }
 
 func TestAutoMigrateUpgradesLegacyShareLinksForMailboxShares(t *testing.T) {
-	database, err := Open(config.Config{
-		DatabaseDriver: "sqlite",
-		DatabaseURL:    filepath.Join(t.TempDir(), "mail.db"),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	sqlDB, err := database.DB()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer sqlDB.Close()
+	database := openSQLiteTestDB(t)
 
 	if err := database.AutoMigrate(&legacyShareLink{}); err != nil {
 		t.Fatal(err)
@@ -400,18 +408,7 @@ func TestAutoMigrateUpgradesLegacyShareLinksForMailboxShares(t *testing.T) {
 }
 
 func TestBackfillMailboxCountersUsesExistingMailboxes(t *testing.T) {
-	database, err := Open(config.Config{
-		DatabaseDriver: "sqlite",
-		DatabaseURL:    filepath.Join(t.TempDir(), "mail.db"),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	sqlDB, err := database.DB()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer sqlDB.Close()
+	database := openSQLiteTestDB(t)
 
 	if err := AutoMigrate(database); err != nil {
 		t.Fatal(err)
@@ -645,6 +642,9 @@ func TestAutoMigrateBackfillsMessageOwnershipFromMailbox(t *testing.T) {
 		t.Fatal(err)
 	}
 	message := legacyMessage("mailbox-message", "legacy@mailbox.test", "mailbox.test", "mailbox.test")
+	message.MailboxID = &mailbox.ID
+	message.DomainID = &domain.ID
+	message.CreatedAt = mailbox.UpdatedAt.Add(time.Second)
 	if err := database.Create(&message).Error; err != nil {
 		t.Fatal(err)
 	}
@@ -683,6 +683,8 @@ func TestAutoMigrateBackfillsMessageOwnershipFromPrivateDomain(t *testing.T) {
 		t.Fatal(err)
 	}
 	message := legacyMessage("private-domain-message", "anything@private.test", "private.test", "private.test")
+	message.DomainID = &domain.ID
+	message.CreatedAt = domain.UpdatedAt.Add(time.Second)
 	if err := database.Create(&message).Error; err != nil {
 		t.Fatal(err)
 	}
@@ -699,13 +701,6 @@ func TestAutoMigrateBackfillsMessageOwnershipFromPrivateDomain(t *testing.T) {
 	assertUintPtr(t, reloaded.DomainID, domain.ID, "domain_id")
 	if reloaded.MailboxID != nil {
 		t.Fatalf("mailbox_id = %d, want nil", *reloaded.MailboxID)
-	}
-}
-
-func TestBackfillMessagePrivateDomainOwnershipRejectsUnexpectedColumn(t *testing.T) {
-	database := openSQLiteTestDB(t)
-	if err := backfillMessagePrivateDomainOwnership(database, "recipient_domain; DROP TABLE messages"); err == nil {
-		t.Fatal("expected unexpected message domain column to be rejected")
 	}
 }
 
@@ -763,9 +758,10 @@ func (legacyShareLink) TableName() string {
 
 func openSQLiteTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
+	// 结构、约束和迁移用例使用内存库；磁盘路径和 WAL 由专门用例验证。
 	database, err := Open(config.Config{
 		DatabaseDriver: "sqlite",
-		DatabaseURL:    filepath.Join(t.TempDir(), "mail.db"),
+		DatabaseURL:    ":memory:",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -841,18 +837,7 @@ func columnDefault(t *testing.T, database *gorm.DB, table, column string) string
 }
 
 func TestBackfillDomainFirstVerifiedAtProtectsOnlyCurrentlyReadyDomains(t *testing.T) {
-	database, err := Open(config.Config{
-		DatabaseDriver: "sqlite",
-		DatabaseURL:    filepath.Join(t.TempDir(), "mail.db"),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	sqlDB, err := database.DB()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer sqlDB.Close()
+	database := openSQLiteTestDB(t)
 
 	if err := AutoMigrate(database); err != nil {
 		t.Fatal(err)

@@ -17,6 +17,7 @@ import (
 
 	"gptmail/internal/auth"
 	"gptmail/internal/config"
+	appdb "gptmail/internal/db"
 	"gptmail/internal/domain"
 	"gptmail/internal/emaildelivery"
 	"gptmail/internal/events"
@@ -1197,6 +1198,10 @@ func TestRecreatedMailboxDoesNotSeeLegacyUnownedMessages(t *testing.T) {
 	}
 	if len(inboxBody.Data) != 0 {
 		t.Fatalf("recreated mailbox should not see legacy unowned messages: %s", inbox.Body.String())
+	}
+	// 启动迁移也必须保持历史邮件隔离，不能根据新申请的同名邮箱补授权限。
+	if err := appdb.AutoMigrate(db); err != nil {
+		t.Fatal(err)
 	}
 	detail := perform(router, http.MethodGet, "/api/email/legacy-unowned-message", nil, map[string]string{"X-API-Key": plain})
 	if detail.Code != http.StatusNotFound {
