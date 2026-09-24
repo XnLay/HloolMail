@@ -136,47 +136,53 @@ func (s *Session) Data(r io.Reader) error {
 		return &gosmtp.SMTPError{Code: 554, Message: "failed to parse message"}
 	}
 	now := time.Now()
-	for _, recipient := range s.recipients {
-		messageID := uuid.NewString()
-		msg := models.Message{
-			ID:              messageID,
-			Recipient:       recipient.Parts.Recipient,
-			RecipientLocal:  recipient.Parts.Local,
-			RecipientDomain: recipient.Parts.Host,
-			RootDomain:      recipient.Domain.Domain,
-			DomainID:        &recipient.Domain.ID,
-			OwnerID:         &recipient.OwnerID,
-			MailboxID:       recipient.MailboxID,
-			FromAddress:     parsed.FromAddress,
-			FromName:        parsed.FromName,
-			Subject:         parsed.Subject,
-			TextContent:     parsed.Text,
-			HTMLContent:     parsed.HTML,
-			HeadersJSON:     parsed.HeadersJSON,
-			ExpiresAt:       now.Add(s.service.Config.MessageRetention),
-		}
-		if msg.FromAddress == "" {
-			msg.FromAddress = s.from
-		}
-		if err := s.service.DB.Transaction(func(tx *gorm.DB) error {
-			if err := tx.Create(&msg).Error; err != nil {
-				return err
+	messages := make([]models.Message, 0, len(s.recipients))
+	// DATA 的响应针对全部收件人；任何落库失败都必须回滚整封邮件。
+	if err := s.service.DB.Transaction(func(tx *gorm.DB) error {
+		for _, recipient := range s.recipients {
+			messageID := uuid.NewString()
+			msg := models.Message{
+				ID:              messageID,
+				Recipient:       recipient.Parts.Recipient,
+				RecipientLocal:  recipient.Parts.Local,
+				RecipientDomain: recipient.Parts.Host,
+				RootDomain:      recipient.Domain.Domain,
+				DomainID:        &recipient.Domain.ID,
+				OwnerID:         &recipient.OwnerID,
+				MailboxID:       recipient.MailboxID,
+				FromAddress:     parsed.FromAddress,
+				FromName:        parsed.FromName,
+				Subject:         parsed.Subject,
+				TextContent:     parsed.Text,
+				HTMLContent:     parsed.HTML,
+				HeadersJSON:     parsed.HeadersJSON,
+				ExpiresAt:       now.Add(s.service.Config.MessageRetention),
 			}
-			if err := appdb.IncrementMessageDailyStat(tx, now, 1); err != nil {
+			if msg.FromAddress == "" {
+				msg.FromAddress = s.from
+			}
+			if err := tx.Create(&msg).Error; err != nil {
 				return err
 			}
 			if err := createMessageAttachments(tx, msg.ID, parsed.Attachments); err != nil {
 				return err
 			}
-			return webhook.EnqueueMessage(tx, s.service.Config, msg)
-		}); err != nil {
-			slog.Warn("smtp failed to store message", "recipient", msg.Recipient, "message_id", msg.ID, "error", err)
-			observability.ObserveSMTPMessageRejected("store_error")
-			return &gosmtp.SMTPError{Code: 451, Message: "failed to store message"}
+			if err := webhook.EnqueueMessage(tx, s.service.Config, msg); err != nil {
+				return err
+			}
+			messages = append(messages, msg)
 		}
+		return appdb.IncrementMessageDailyStat(tx, now, int64(len(messages)))
+	}); err != nil {
+		slog.Warn("smtp failed to store message batch", "recipients", len(s.recipients), "error", err)
+		observability.ObserveSMTPMessageRejected("store_error")
+		return &gosmtp.SMTPError{Code: 451, Message: "failed to store message"}
+	}
+	// 内存事件只能在事务提交后发布，避免客户端看见随后回滚的邮件。
+	for _, msg := range messages {
 		observability.ObserveSMTPMessageReceived()
 		if s.service.Hub != nil {
-			s.service.Hub.Publish(recipient.Parts.Recipient, events.MessageEvent{
+			s.service.Hub.Publish(msg.Recipient, events.MessageEvent{
 				ID:        msg.ID,
 				Recipient: msg.Recipient,
 				Subject:   msg.Subject,
