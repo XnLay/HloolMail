@@ -13,6 +13,9 @@ env:
   NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
 
 jobs:
+  quality:
+    uses: ./.github/workflows/quality.yml
+
   validate-tag:
     runs-on: ubuntu-latest
     steps:
@@ -26,7 +29,7 @@ jobs:
           fi
 
   build:
-    needs: validate-tag
+    needs: [quality, validate-tag]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -127,6 +130,7 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
+          pattern: hloolmail-*
           path: dist
           merge-multiple: true
 
@@ -161,5 +165,8 @@ jobs:
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*
+          files: |
+            dist/hloolmail-*.tar.gz
+            dist/hloolmail-*.zip
+          fail_on_unmatched_files: true
           body_path: release-notes.md

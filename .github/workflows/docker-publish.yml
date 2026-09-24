@@ -17,7 +17,11 @@ env:
   NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
 
 jobs:
+  quality:
+    uses: ./.github/workflows/quality.yml
+
   publish:
+    needs: quality
     runs-on: ubuntu-latest
     steps:
       - name: Validate release tag
