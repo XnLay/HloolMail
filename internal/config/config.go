@@ -30,6 +30,7 @@ const (
 
 type Config struct {
 	HTTPAddr                           string
+	TrustedProxies                     []string
 	SMTPAddr                           string
 	PublicBaseURL                      string
 	PublicIndexing                     string
@@ -80,6 +81,7 @@ func Load() Config {
 	linuxDoOAuth := loadOAuthProviderConfig("LINUXDO")
 	return Config{
 		HTTPAddr:                           getEnv("HTTP_ADDR", ":3000"),
+		TrustedProxies:                     parseTrustedProxies(getEnv("TRUSTED_PROXIES", "")),
 		SMTPAddr:                           getEnv("SMTP_ADDR", ":2525"),
 		PublicBaseURL:                      getEnv("PUBLIC_BASE_URL", "http://localhost:3000"),
 		PublicIndexing:                     NormalizePublicIndexing(getEnv("PUBLIC_INDEXING", PublicIndexingLanding)),
@@ -115,6 +117,14 @@ func Load() Config {
 
 func (c Config) Validate() []error {
 	var errs []error
+	for _, proxy := range c.TrustedProxies {
+		if net.ParseIP(proxy) != nil {
+			continue
+		}
+		if _, _, err := net.ParseCIDR(proxy); err != nil {
+			errs = append(errs, fmt.Errorf("TRUSTED_PROXIES contains invalid IP or CIDR %q", proxy))
+		}
+	}
 	if err := validateListenAddr("HTTP_ADDR", c.HTTPAddr); err != nil {
 		errs = append(errs, err)
 	}
@@ -172,6 +182,16 @@ func (c Config) Validate() []error {
 		errs = append(errs, fmt.Errorf("AUDIT_ACTIVITY_RETENTION_DAYS must be greater than 0"))
 	}
 	return errs
+}
+
+func parseTrustedProxies(value string) []string {
+	var proxies []string
+	for _, item := range strings.Split(value, ",") {
+		if proxy := strings.TrimSpace(item); proxy != "" {
+			proxies = append(proxies, proxy)
+		}
+	}
+	return proxies
 }
 
 func isPostgresDriver(driver string) bool {

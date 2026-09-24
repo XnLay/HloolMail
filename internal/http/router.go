@@ -9,8 +9,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 	"gptmail/internal/auth"
 	"gptmail/internal/config"
 	"gptmail/internal/domain"
@@ -20,6 +18,9 @@ import (
 	"gptmail/internal/jobs"
 	"gptmail/internal/mailer"
 	"gptmail/internal/ratelimit"
+
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -69,6 +70,10 @@ func NewRouter(h *Handler) *gin.Engine {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	router := gin.New()
+	// 默认只使用 TCP 对端 IP；配置错误必须在监听端口前暴露，禁止回落到全信任。
+	if err := router.SetTrustedProxies(h.Config.TrustedProxies); err != nil {
+		panic("invalid TRUSTED_PROXIES: " + err.Error())
+	}
 	router.Use(h.requestID(), h.httpMetrics(), gin.Recovery(), h.securityHeaders(), h.cors(), h.loadSession(), h.optionalAPIKey(), h.requireSameOriginSessionWrite())
 
 	if h.Config.MetricsEnabled {

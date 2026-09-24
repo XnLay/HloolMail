@@ -13,6 +13,7 @@ services:
       - "${SMTP_PORT:-2525}:2525"
     environment:
       HTTP_ADDR: ":3000"
+      TRUSTED_PROXIES: "${TRUSTED_PROXIES:-}"
       SMTP_ADDR: ":2525"
       HLOOLMAIL_DEPLOYMENT: "docker"
       HLOOLMAIL_CONFIG_LOCKED: "true"

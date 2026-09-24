@@ -442,6 +442,7 @@ SDK 暂缓。现阶段不承诺官方 SDK 的稳定发布节奏；需要强类�
 - Web Console、Webhook 目标和公开 Share Link 建议全程 HTTPS。
 - Webhook secret 只显示一次，轮换后旧 secret 立刻失效。
 - 反向代理需要保留 `Host`、`X-Forwarded-Proto`，否则 Share Link URL 和登录回调可能生成错误地址。
+- 若需让后端读取代理转发的客户端 IP，请在 `.env` 中将 `TRUSTED_PROXIES` 设置为实际反向代理的 IP 或 CIDR（多个值用逗号分隔）；直连部署保持为空。后端默认不信任转发头，避免客户端伪造 `X-Forwarded-For` 绕过 IP 限流。
 - HTML 邮件详情会经过服务端清洗，并在前端 sandbox iframe 中展示。
 - 定期备份 PostgreSQL 或 SQLite 数据；升级前尤其要备份。
 
