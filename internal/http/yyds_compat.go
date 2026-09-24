@@ -13,7 +13,9 @@ import (
 	"gptmail/internal/db"
 	domaindb "gptmail/internal/domain"
 	"gptmail/internal/mailhtml"
+	"gptmail/internal/mailstore"
 	"gptmail/internal/models"
+	"gptmail/internal/webhook"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -289,23 +291,13 @@ func (h *Handler) yydsDeleteAccount(c *gin.Context) {
 	if !allowed {
 		return
 	}
-	var messagesDeleted int64
-	if err := h.DB.Transaction(func(tx *gorm.DB) error {
-		if err := deleteShareLinksForMailboxQuery(tx, mailbox.ID); err != nil {
-			return err
+	messagesDeleted, err := mailstore.DeleteMailbox(h.DB, mailbox.OwnerID, mailbox.ID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			fail(c, http.StatusNotFound, "mailbox not found")
+		} else {
+			fail(c, http.StatusInternalServerError, err.Error())
 		}
-		messageQuery := tx.Model(&models.Message{}).Where("mailbox_id = ? OR (owner_id = ? AND recipient = ?) OR (owner_id IS NULL AND recipient = ?)", mailbox.ID, mailbox.OwnerID, mailbox.Email, mailbox.Email)
-		if err := deleteMailboxMessageDependentsForQuery(tx, messageQuery); err != nil {
-			return err
-		}
-		result := messageQuery.Unscoped().Delete(&models.Message{})
-		if result.Error != nil {
-			return result.Error
-		}
-		messagesDeleted = result.RowsAffected
-		return tx.Delete(&mailbox).Error
-	}); err != nil {
-		fail(c, http.StatusInternalServerError, err.Error())
 		return
 	}
 	h.audit("mailbox.delete", h.currentActor(c).name(), mailbox.Email, fmt.Sprintf("yyds_compat=true messages_deleted=%d", messagesDeleted))
@@ -426,10 +418,8 @@ func (h *Handler) yydsDeleteMessage(c *gin.Context) {
 	}
 	if err := h.DB.Transaction(func(tx *gorm.DB) error {
 		messageQuery := tx.Model(&models.Message{}).Where("id = ?", msg.ID)
-		if err := deleteMessageDependentsForQuery(tx, messageQuery); err != nil {
-			return err
-		}
-		return tx.Unscoped().Delete(&msg).Error
+		_, err := mailstore.DeleteMessages(tx, messageQuery, time.Now().UTC(), webhook.RedactionReasonMessageDeleted)
+		return err
 	}); err != nil {
 		fail(c, http.StatusInternalServerError, err.Error())
 		return

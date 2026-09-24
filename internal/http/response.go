@@ -97,3 +97,12 @@ func usage(c *gin.Context) map[string]string {
 	}
 	return values
 }
+
+type httpStatusError struct {
+	Status  int
+	Message string
+}
+
+func (e httpStatusError) Error() string {
+	return e.Message
+}

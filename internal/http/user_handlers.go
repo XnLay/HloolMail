@@ -4,11 +4,14 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
 	"gptmail/internal/auth"
+	"gptmail/internal/mailstore"
 	"gptmail/internal/models"
+	"gptmail/internal/webhook"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -414,14 +417,8 @@ func (h *Handler) deleteUser(c *gin.Context) {
 		if err := tx.Model(&models.Mailbox{}).Where("owner_id = ?", user.ID).Pluck("email", &mailboxEmails).Error; err != nil {
 			return err
 		}
-		if len(mailboxIDs) > 0 {
-			mailboxShares := tx.Model(&models.ShareLink{}).Where("resource_type = ? AND mailbox_id IN ?", models.ShareResourceTypeMailbox, mailboxIDs)
-			if err := tx.Where("share_link_id IN (?)", mailboxShares.Select("id")).Delete(&models.ShareLinkAccessLog{}).Error; err != nil {
-				return err
-			}
-			if err := tx.Where("resource_type = ? AND mailbox_id IN ?", models.ShareResourceTypeMailbox, mailboxIDs).Delete(&models.ShareLink{}).Error; err != nil {
-				return err
-			}
+		if err := mailstore.DeleteMailboxShares(tx, mailboxIDs); err != nil {
+			return err
 		}
 		messageQuery := tx.Model(&models.Message{}).Where("owner_id = ?", user.ID)
 		if len(domainIDs) > 0 {
@@ -430,10 +427,7 @@ func (h *Handler) deleteUser(c *gin.Context) {
 		if len(mailboxEmails) > 0 {
 			messageQuery = messageQuery.Or("recipient IN ?", mailboxEmails)
 		}
-		if err := deleteMessageDependentsForQuery(tx, messageQuery); err != nil {
-			return err
-		}
-		if err := messageQuery.Unscoped().Delete(&models.Message{}).Error; err != nil {
+		if _, err := mailstore.DeleteMessages(tx, messageQuery, time.Now().UTC(), webhook.RedactionReasonMessageDeleted); err != nil {
 			return err
 		}
 		userShareLinks := tx.Model(&models.ShareLink{}).Where("owner_id = ?", user.ID)

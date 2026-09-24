@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"gptmail/internal/config"
+	"gptmail/internal/mailstore"
 	"gptmail/internal/models"
 	"gptmail/internal/scheduler"
 	"gptmail/internal/webhook"
@@ -80,21 +81,9 @@ func RunExpiredRegistrationCleanup(db *gorm.DB, now time.Time) error {
 
 func RunExpiredMessageCleanup(db *gorm.DB, now time.Time) error {
 	return db.Transaction(func(tx *gorm.DB) error {
-		expiredMessages := tx.Model(&models.Message{}).Where("expires_at < ?", now)
-		expiredShareLinks := tx.Model(&models.ShareLink{}).Where("resource_type = ? AND message_id IN (?)", models.ShareResourceTypeMessage, expiredMessages.Select("id"))
-		if err := webhook.RedactMessageDeliveriesForQuery(tx, expiredMessages, now, webhook.RedactionReasonMessageExpired); err != nil {
-			return err
-		}
-		if err := tx.Where("share_link_id IN (?)", expiredShareLinks.Select("id")).Delete(&models.ShareLinkAccessLog{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("resource_type = ? AND message_id IN (?)", models.ShareResourceTypeMessage, expiredMessages.Select("id")).Delete(&models.ShareLink{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("message_id IN (?)", expiredMessages.Select("id")).Delete(&models.MessageAttachment{}).Error; err != nil {
-			return err
-		}
-		return tx.Unscoped().Where("expires_at < ?", now).Delete(&models.Message{}).Error
+		scope := tx.Model(&models.Message{}).Where("expires_at < ?", now)
+		_, err := mailstore.DeleteMessages(tx, scope, now, webhook.RedactionReasonMessageExpired)
+		return err
 	})
 }
 
