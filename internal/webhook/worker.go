@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"gptmail/internal/config"
+	"gptmail/internal/deliveryqueue"
 	"gptmail/internal/models"
 	"gptmail/internal/observability"
 
@@ -164,6 +165,11 @@ func (w *Worker) claimDueDeliveries(ctx context.Context) ([]models.WebhookDelive
 }
 
 func (w *Worker) deliver(ctx context.Context, delivery *models.WebhookDelivery) error {
+	if owned, err := w.deliveryStillClaimed(ctx, delivery); err != nil {
+		return err
+	} else if !owned {
+		return nil
+	}
 	now := w.now()
 	if delivery.Endpoint.ID == 0 {
 		if err := w.DB.WithContext(ctx).Preload("Endpoint").First(delivery, "id = ?", delivery.ID).Error; err != nil {
@@ -184,8 +190,7 @@ func (w *Worker) deliver(ctx context.Context, delivery *models.WebhookDelivery) 
 		return w.finishFailure(ctx, delivery, now, err.Error(), nil, "", false)
 	}
 	attempt := delivery.AttemptCount + 1
-	result := w.DB.WithContext(ctx).Model(&models.WebhookDelivery{}).
-		Where("id = ? AND status = ?", delivery.ID, models.WebhookDeliveryStatusDelivering).
+	result := w.claimedDelivery(w.DB.WithContext(ctx), delivery).
 		Updates(map[string]any{
 			"attempt_count":   attempt,
 			"last_attempt_at": now,
@@ -260,21 +265,21 @@ func (w *Worker) messageStillDeliverable(ctx context.Context, delivery *models.W
 }
 
 func (w *Worker) deliveryStillClaimed(ctx context.Context, delivery *models.WebhookDelivery) (bool, error) {
-	var current models.WebhookDelivery
-	if err := w.DB.WithContext(ctx).Select("status", "payload_json").First(&current, "id = ?", delivery.ID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return false, nil
-		}
-		return false, err
-	}
-	return current.Status == models.WebhookDeliveryStatusDelivering && current.PayloadJSON == delivery.PayloadJSON, nil
+	var count int64
+	err := w.claimedDelivery(w.DB.WithContext(ctx), delivery).
+		Where("payload_json = ?", delivery.PayloadJSON).Count(&count).Error
+	return count == 1, err
+}
+
+func (w *Worker) claimedDelivery(query *gorm.DB, delivery *models.WebhookDelivery) *gorm.DB {
+	return deliveryqueue.Claimed(query.Model(&models.WebhookDelivery{}), delivery.ID, w.lockedBy(), delivery.LockedAt).
+		Where("status = ?", models.WebhookDeliveryStatusDelivering)
 }
 
 func (w *Worker) finishSuccess(ctx context.Context, delivery *models.WebhookDelivery, now time.Time, status int, body string) error {
 	applied := false
 	err := w.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		result := tx.Model(&models.WebhookDelivery{}).
-			Where("id = ? AND status = ?", delivery.ID, models.WebhookDeliveryStatusDelivering).
+		result := w.claimedDelivery(tx, delivery).
 			Updates(map[string]any{
 				"status":          models.WebhookDeliveryStatusSucceeded,
 				"locked_at":       nil,
@@ -325,8 +330,7 @@ func (w *Worker) finishFailure(ctx context.Context, delivery *models.WebhookDeli
 			"response_body":   body,
 			"error":           message,
 		}
-		result := tx.Model(&models.WebhookDelivery{}).
-			Where("id = ? AND status = ?", delivery.ID, models.WebhookDeliveryStatusDelivering).
+		result := w.claimedDelivery(tx, delivery).
 			Updates(updates)
 		if result.Error != nil {
 			return result.Error

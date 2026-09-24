@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"gptmail/internal/deliveryqueue"
 	"gptmail/internal/mailer"
 	"gptmail/internal/models"
 
@@ -145,8 +146,7 @@ func (w *Worker) deliver(ctx context.Context, delivery *models.EmailDelivery) er
 	}
 	attempt := delivery.AttemptCount + 1
 	stageLog := appendStageLog(delivery.StageLog, StageEntry{At: now, Stage: StagePreparing, Detail: "delivery attempt started"})
-	result := w.DB.WithContext(ctx).Model(&models.EmailDelivery{}).
-		Where("id = ? AND status = ? AND locked_by = ?", delivery.ID, models.EmailDeliveryStatusDelivering, delivery.LockedBy).
+	result := w.claimedDelivery(w.DB.WithContext(ctx), delivery).
 		Updates(map[string]any{
 			"attempt_count":   attempt,
 			"last_attempt_at": now,
@@ -164,7 +164,7 @@ func (w *Worker) deliver(ctx context.Context, delivery *models.EmailDelivery) er
 	delivery.StageLog = stageLog
 
 	stageCtx := mailer.WithStageRecorder(ctx, func(stage, detail string) {
-		_ = w.recordStage(context.Background(), delivery.ID, stage, detail)
+		_ = w.recordStage(context.Background(), delivery, stage, detail)
 	})
 	err := w.sender().Send(stageCtx, settings, message)
 	if err != nil {
@@ -173,15 +173,20 @@ func (w *Worker) deliver(ctx context.Context, delivery *models.EmailDelivery) er
 	return w.finishSuccess(ctx, delivery, now)
 }
 
-func (w *Worker) recordStage(ctx context.Context, id, stage, detail string) error {
+func (w *Worker) claimedDelivery(query *gorm.DB, delivery *models.EmailDelivery) *gorm.DB {
+	return deliveryqueue.Claimed(query.Model(&models.EmailDelivery{}), delivery.ID, w.lockedBy(), delivery.LockedAt).
+		Where("status = ?", models.EmailDeliveryStatusDelivering)
+}
+
+func (w *Worker) recordStage(ctx context.Context, delivery *models.EmailDelivery, stage, detail string) error {
 	var current models.EmailDelivery
-	if err := w.DB.WithContext(ctx).Select("id", "status", "stage_log", "locked_by").First(&current, "id = ?", id).Error; err != nil {
+	if err := w.claimedDelivery(w.DB.WithContext(ctx), delivery).Select("id", "stage_log").First(&current).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
 		return err
 	}
-	if current.Status != models.EmailDeliveryStatusDelivering || current.LockedBy != w.lockedBy() {
-		return nil
-	}
-	return w.DB.WithContext(ctx).Model(&models.EmailDelivery{}).Where("id = ? AND status = ? AND locked_by = ?", id, models.EmailDeliveryStatusDelivering, current.LockedBy).Updates(map[string]any{
+	return w.claimedDelivery(w.DB.WithContext(ctx), delivery).Updates(map[string]any{
 		"stage":     stage,
 		"stage_log": appendStageLog(current.StageLog, StageEntry{At: w.now(), Stage: stage, Detail: detail}),
 	}).Error
@@ -190,7 +195,7 @@ func (w *Worker) recordStage(ctx context.Context, id, stage, detail string) erro
 func (w *Worker) finishSuccess(ctx context.Context, delivery *models.EmailDelivery, now time.Time) error {
 	return w.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var current models.EmailDelivery
-		if err := tx.First(&current, "id = ? AND status = ? AND locked_by = ?", delivery.ID, models.EmailDeliveryStatusDelivering, delivery.LockedBy).Error; err != nil {
+		if err := w.claimedDelivery(tx, delivery).First(&current).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return nil
 			}
@@ -208,7 +213,7 @@ func (w *Worker) finishSuccess(ctx context.Context, delivery *models.EmailDelive
 			"message_json":  "{}",
 			"settings_json": "{}",
 		}
-		result := tx.Model(&models.EmailDelivery{}).Where("id = ? AND status = ? AND locked_by = ?", delivery.ID, models.EmailDeliveryStatusDelivering, delivery.LockedBy).Updates(updates)
+		result := w.claimedDelivery(tx, delivery).Updates(updates)
 		if result.Error != nil {
 			return result.Error
 		}
@@ -240,7 +245,7 @@ func (w *Worker) finishFailure(ctx context.Context, delivery *models.EmailDelive
 	}
 	return w.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var current models.EmailDelivery
-		if err := tx.First(&current, "id = ? AND status = ? AND locked_by = ?", delivery.ID, models.EmailDeliveryStatusDelivering, delivery.LockedBy).Error; err != nil {
+		if err := w.claimedDelivery(tx, delivery).First(&current).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return nil
 			}
@@ -262,8 +267,7 @@ func (w *Worker) finishFailure(ctx context.Context, delivery *models.EmailDelive
 			updates["message_json"] = "{}"
 			updates["settings_json"] = "{}"
 		}
-		return tx.Model(&models.EmailDelivery{}).
-			Where("id = ? AND status = ? AND locked_by = ?", delivery.ID, models.EmailDeliveryStatusDelivering, delivery.LockedBy).
+		return w.claimedDelivery(tx, delivery).
 			Updates(updates).Error
 	})
 }
