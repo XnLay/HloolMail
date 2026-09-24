@@ -1,22 +1,30 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
-import { AnimatePresence } from 'framer-motion';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from './api';
+import { AnimatePresence } from 'framer-motion';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import type { InstallStatus } from './api';
-import type { MeResponse } from './types';
-import { useText } from './locales';
-import { useAppStore } from './store';
+import { api } from './api';
 import { CenteredState, ErrorBoundary, PageTransition } from './components/shared';
 import { notifySuccess } from './lib/feedback';
 import { setMonitoringTag, setMonitoringUser } from './lib/monitoring';
 import { expireUserSession } from './lib/queryClient';
+import { useText } from './locales';
+import { useAppStore } from './store';
+import type { MeResponse } from './types';
 
-const InstallPage = lazy(() => import('./pages/InstallPage').then(m => ({ default: m.InstallPage })));
-const LandingPage = lazy(() => import('./pages/LandingPage').then(m => ({ default: m.LandingPage })));
-const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
-const LegalPage = lazy(() => import('./pages/LegalPage').then(m => ({ default: m.LegalPage })));
-const SharedMessagePage = lazy(() => import('./pages/SharedMessagePage').then(m => ({ default: m.SharedMessagePage })));
-const Console = lazy(() => import('./components/layout/Console').then(m => ({ default: m.Console })));
+const InstallPage = lazy(() =>
+  import('./pages/InstallPage').then((m) => ({ default: m.InstallPage }))
+);
+const LandingPage = lazy(() =>
+  import('./pages/LandingPage').then((m) => ({ default: m.LandingPage }))
+);
+const LoginPage = lazy(() => import('./pages/LoginPage').then((m) => ({ default: m.LoginPage })));
+const LegalPage = lazy(() => import('./pages/LegalPage').then((m) => ({ default: m.LegalPage })));
+const SharedMessagePage = lazy(() =>
+  import('./pages/SharedMessagePage').then((m) => ({ default: m.SharedMessagePage }))
+);
+const Console = lazy(() =>
+  import('./components/layout/Console').then((m) => ({ default: m.Console }))
+);
 
 export default function App() {
   return (
@@ -44,22 +52,28 @@ function AppContent() {
   const text = useText();
   const me = useQuery({
     queryKey: ['me'],
-    queryFn: () => api<MeResponse>('/api/auth/me'),
+    queryFn: ({ signal }) => api<MeResponse>('/api/auth/me', { signal }),
     retry: false,
-    enabled: !isSharedRoute
+    enabled: !isSharedRoute,
   });
   const installStatus = useQuery({
     queryKey: ['install-status'],
     queryFn: () => api<InstallStatus>('/api/install/status'),
     retry: false,
-    enabled: !isSharedRoute
+    enabled: !isSharedRoute,
   });
-  const skipInstall = import.meta.env.DEV && typeof window !== 'undefined' && sessionStorage.getItem('hlool_skip_install') === '1';
+  const skipInstall =
+    import.meta.env.DEV &&
+    typeof window !== 'undefined' &&
+    sessionStorage.getItem('hlool_skip_install') === '1';
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-color-scheme: dark)');
     const applyTheme = () => {
-      document.documentElement.classList.toggle('dark', theme === 'dark' || (theme === 'system' && media.matches));
+      document.documentElement.classList.toggle(
+        'dark',
+        theme === 'dark' || (theme === 'system' && media.matches)
+      );
     };
 
     applyTheme();
@@ -105,14 +119,27 @@ function AppContent() {
     const pageTitle = isSharedRoute
       ? text.shared.title
       : isAuthRoute
-        ? (authRoute === 'register' ? text.login.registerTitle : text.login.title)
-      : (!me.isError && me.data?.installed === false
-        ? text.install.title
-        : me.isError || !me.data?.user
-          ? text.login.title
-          : text.page[page]);
+        ? authRoute === 'register'
+          ? text.login.registerTitle
+          : text.login.title
+        : !me.isError && me.data?.installed === false
+          ? text.install.title
+          : me.isError || !me.data?.user
+            ? text.login.title
+            : text.page[page];
     document.title = `${unreadCount > 0 ? `(${unreadCount}) ` : ''}${pageTitle} | HLOOL Mail`;
-  }, [authRoute, awayAnnouncementCount, awayMailCount, isAuthRoute, isSharedRoute, me.data?.installed, me.data?.user, me.isError, page, text]);
+  }, [
+    authRoute,
+    awayAnnouncementCount,
+    awayMailCount,
+    isAuthRoute,
+    isSharedRoute,
+    me.data?.installed,
+    me.data?.user,
+    me.isError,
+    page,
+    text,
+  ]);
 
   useEffect(() => {
     if (skipInstall && me.data?.user) {
@@ -126,16 +153,18 @@ function AppContent() {
     if (!feedback) return;
 
     const providerName = oauthProviderDisplayName(feedback.provider);
-    const label = feedback.type === 'bound'
-      ? text.profile.boundToast.replace('{provider}', providerName)
-      : text.profile.oauthRegistered.replace('{provider}', providerName);
+    const label =
+      feedback.type === 'bound'
+        ? text.profile.boundToast.replace('{provider}', providerName)
+        : text.profile.oauthRegistered.replace('{provider}', providerName);
 
     notifySuccess(label);
     queryClient.invalidateQueries({ queryKey: ['me'] });
     queryClient.invalidateQueries({ queryKey: ['user-oauth-identities'] });
   }, [me.data?.user, queryClient, text]);
 
-  const bootLoading = me.isLoading || (!me.isError && me.data?.installed === false && installStatus.isLoading);
+  const bootLoading =
+    me.isLoading || (!me.isError && me.data?.installed === false && installStatus.isLoading);
 
   return (
     <Suspense fallback={<CenteredState key="app-loader">{text.common.loading}</CenteredState>}>
@@ -163,7 +192,6 @@ function AppContent() {
             ) : me.isError || !me.data?.user ? (
               isAuthRoute ? (
                 <LoginPage
-                  status={installStatus.data}
                   initialMode={authRoute}
                   onDone={() => {
                     queryClient.invalidateQueries({ queryKey: ['me'] });
@@ -171,11 +199,7 @@ function AppContent() {
                   }}
                 />
               ) : (
-                <LandingPage
-                  status={installStatus.data}
-                  statsLoading={installStatus.isLoading}
-                  onDone={() => queryClient.invalidateQueries({ queryKey: ['me'] })}
-                />
+                <LandingPage status={installStatus.data} statsLoading={installStatus.isLoading} />
               )
             ) : (
               <Console user={me.data.user} />
@@ -196,7 +220,7 @@ function sharedTokenFromLocation(routeKey: string) {
   if (typeof window === 'undefined') return '';
   const [pathAndSearch, hash = ''] = routeKey.split('#');
   const pathOnly = pathAndSearch.split('?')[0];
-  const hashMatch = (`#${hash}`).match(/^#\/share\/([^?]+)/);
+  const hashMatch = `#${hash}`.match(/^#\/share\/([^?]+)/);
   const pathMatch = pathOnly.match(/^\/share\/([^/?]+)/);
   const raw = hashMatch?.[1] || pathMatch?.[1] || '';
   if (!raw) return '';
@@ -211,7 +235,7 @@ function authRouteFromLocation(routeKey: string): 'login' | 'register' | null {
   if (typeof window === 'undefined') return null;
   const [pathAndSearch, hash = ''] = routeKey.split('#');
   const pathOnly = pathAndSearch.split('?')[0].replace(/\/+$/, '') || '/';
-  const hashPath = (`#${hash}`).split('?')[0];
+  const hashPath = `#${hash}`.split('?')[0];
   if (pathOnly === '/login') return 'login';
   if (pathOnly === '/register') return 'register';
   if (hashPath === '#/login') return 'login';
@@ -257,7 +281,10 @@ function consumeOAuthFeedback(): OAuthFeedback | null {
   return hashFeedback.feedback;
 }
 
-function consumeOAuthParams(params: URLSearchParams): { feedback: OAuthFeedback | null; params: URLSearchParams } {
+function consumeOAuthParams(params: URLSearchParams): {
+  feedback: OAuthFeedback | null;
+  params: URLSearchParams;
+} {
   const boundProvider = params.get('oauth_bound');
   const registeredProvider = params.get('oauth_register');
   params.delete('oauth_bound');
@@ -282,7 +309,7 @@ function legalRouteFromLocation(routeKey: string): 'terms' | 'privacy' | null {
   if (typeof window === 'undefined') return null;
   const [pathAndSearch, hash = ''] = routeKey.split('#');
   const pathOnly = pathAndSearch.split('?')[0].replace(/\/+$/, '') || '/';
-  const hashPath = (`#${hash}`).split('?')[0];
+  const hashPath = `#${hash}`.split('?')[0];
   if (pathOnly === '/terms' || hashPath === '#/terms') return 'terms';
   if (pathOnly === '/privacy' || hashPath === '#/privacy') return 'privacy';
   return null;

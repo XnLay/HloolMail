@@ -48,7 +48,7 @@ const USER_QUERY_ROOTS = new Set([
   'user-passkeys',
   'users',
   'webhook-deliveries',
-  'webhooks'
+  'webhooks',
 ]);
 
 let sessionExpiredNotified = false;
@@ -58,12 +58,12 @@ export function createAppQueryClient() {
     queryCache: new QueryCache({
       onError: (error, query) => {
         handleQueryError(error, queryClient, query.queryKey);
-      }
+      },
     }),
     mutationCache: new MutationCache({
       onError: (error, _variables, _context, mutation) => {
         handleMutationError(error, queryClient, Boolean(mutation.options.onError));
-      }
+      },
     }),
     defaultOptions: {
       queries: {
@@ -71,12 +71,12 @@ export function createAppQueryClient() {
         retry: (failureCount, error) => {
           if (error instanceof ApiError && error.status >= 400 && error.status < 500) return false;
           return failureCount < 1;
-        }
+        },
       },
       mutations: {
-        retry: false
-      }
-    }
+        retry: false,
+      },
+    },
   });
 
   return queryClient;
@@ -89,14 +89,18 @@ function handleQueryError(error: unknown, queryClient: QueryClient, queryKey: re
   captureException(error, {
     source: 'react-query',
     kind: 'query',
-    queryKey: typeof queryKey[0] === 'string' ? queryKey[0] : String(queryKey[0] ?? 'unknown')
+    queryKey: typeof queryKey[0] === 'string' ? queryKey[0] : String(queryKey[0] ?? 'unknown'),
   });
 }
 
 function handleMutationError(error: unknown, queryClient: QueryClient, hasLocalHandler: boolean) {
   if (handleAuthError(error, queryClient)) return;
   // Local handlers keep their own UI, but unexpected failures are still observable.
-  captureException(error, { source: 'react-query', kind: 'mutation', handledLocally: hasLocalHandler });
+  captureException(error, {
+    source: 'react-query',
+    kind: 'mutation',
+    handledLocally: hasLocalHandler,
+  });
   if (hasLocalHandler) return;
   toast.error(readErrorMessage(error));
 }
@@ -121,6 +125,8 @@ export function expireUserSession(queryClient: QueryClient) {
 }
 
 export function clearUserSession(queryClient: QueryClient) {
+  // 先取消在途身份查询，阻止迟到响应恢复旧账号或覆盖新账号。
+  void queryClient.cancelQueries({ queryKey: AUTH_PROBE_QUERY_KEY, exact: true });
   clearPendingGetRequests();
   useAppStore.getState().logout();
   clearUserQueryCache(queryClient, { keepAuthProbe: true });
@@ -128,13 +134,16 @@ export function clearUserSession(queryClient: QueryClient) {
   clearStoredRequestHistory();
 }
 
-export function clearUserQueryCache(queryClient: QueryClient, options: { keepAuthProbe?: boolean } = {}) {
+export function clearUserQueryCache(
+  queryClient: QueryClient,
+  options: { keepAuthProbe?: boolean } = {}
+) {
   queryClient.removeQueries({
     predicate: (query) => {
       if (options.keepAuthProbe && isAuthProbeQueryKey(query.queryKey)) return false;
       const [root] = query.queryKey;
       return typeof root === 'string' && USER_QUERY_ROOTS.has(root);
-    }
+    },
   });
 }
 
@@ -148,7 +157,11 @@ function notifySessionExpired() {
   }, 5000);
 }
 
-function handleAuthProbeUnauthorized(error: unknown, queryClient: QueryClient, queryKey: readonly unknown[]) {
+function handleAuthProbeUnauthorized(
+  error: unknown,
+  queryClient: QueryClient,
+  queryKey: readonly unknown[]
+) {
   if (!(error instanceof ApiError) || error.status !== 401 || queryKey[0] !== 'me') return false;
   clearUserSession(queryClient);
   return true;
