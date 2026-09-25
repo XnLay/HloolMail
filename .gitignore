@@ -6,6 +6,9 @@ storage/
 !.env.example
 !.env.compose.example
 
+# Local code-analysis state and memories
+.serena/
+
 # Frontend dependencies and build output
 web/dist/
 internal/frontend/dist/
