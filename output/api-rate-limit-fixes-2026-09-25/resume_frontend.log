@@ -1,0 +1,12 @@
+
+> gptmail-console@0.9.2 test
+> vitest run --environment jsdom --maxWorkers=2 src/features/admin/components/APIRateLimitSettingsPanel.test.tsx src/features/admin/utils/rateLimitForm.test.ts src/lib/rateLimitSessionBoundary.test.ts
+
+
+ RUN  v4.1.8 /home/x/project/github/HloolMail/web
+
+
+ Test Files  3 passed (3)
+      Tests  42 passed (42)
+   Start at  20:16:41
+   Duration  5.38s (transform 834ms, setup 135ms, import 1.59s, tests 2.27s, environment 5.55s)

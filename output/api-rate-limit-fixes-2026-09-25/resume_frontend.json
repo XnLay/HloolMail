@@ -1,0 +1,14 @@
+{
+  "check": "frontend",
+  "command": [
+    "npm",
+    "test",
+    "--",
+    "--maxWorkers=2",
+    "src/features/admin/components/APIRateLimitSettingsPanel.test.tsx",
+    "src/features/admin/utils/rateLimitForm.test.ts",
+    "src/lib/rateLimitSessionBoundary.test.ts"
+  ],
+  "exit_code": 0,
+  "seconds": 6.501
+}

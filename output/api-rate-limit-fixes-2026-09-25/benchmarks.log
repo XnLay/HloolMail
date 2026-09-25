@@ -1,0 +1,11 @@
+goos: linux
+goarch: amd64
+pkg: gptmail/internal/ratelimit
+cpu: Intel(R) Core(TM) i5-10300H CPU @ 2.50GHz
+BenchmarkLimiterSaturatedPreflight-8   	 1155699	       324.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLimiterHotKey-8               	 1236838	       294.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLimiterManyKeys-8             	  687678	       587.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkLimiterNewKeyAtCapacity/1000-8         	 1341681	       263.9 ns/op	      18 B/op	       1 allocs/op
+BenchmarkLimiterNewKeyAtCapacity/100000-8       	 1291160	       305.9 ns/op	      17 B/op	       1 allocs/op
+PASS
+ok  	gptmail/internal/ratelimit	4.697s

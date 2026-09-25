@@ -1,0 +1,174 @@
+{
+  "postgres_load": [
+    {
+      "scenario": "defaults",
+      "concurrency": 8,
+      "bcrypt_cost": 12,
+      "seconds": 6.00077659,
+      "successes": 31,
+      "rate_limited": 65605,
+      "unexpected": 0,
+      "success_rps": 5.165998022932562,
+      "rejected_rps": 10932.751622402926,
+      "success_p95_ms": 521.818024,
+      "success_p99_ms": 559.402763,
+      "pool_max_connections": 25,
+      "pool_waits": 0,
+      "pool_wait_ms": 0,
+      "settings_queries": 0
+    },
+    {
+      "scenario": "raised",
+      "concurrency": 8,
+      "bcrypt_cost": 12,
+      "seconds": 6.6345843349999996,
+      "successes": 128,
+      "rate_limited": 80,
+      "unexpected": 0,
+      "success_rps": 19.292843912579492,
+      "rejected_rps": 12.058027445362182,
+      "success_p95_ms": 868.601208,
+      "success_p99_ms": 1130.17906,
+      "pool_max_connections": 25,
+      "pool_waits": 0,
+      "pool_wait_ms": 0,
+      "settings_queries": 0
+    }
+  ],
+  "responsive": [
+    {
+      "name": "mobile-light",
+      "viewport": 375,
+      "scrollWidth": 375,
+      "panelRight": 351,
+      "panelWidth": 325,
+      "panelScrollWidth": 325,
+      "minInputHeight": 44,
+      "minToggleHeight": 44,
+      "fieldCount": 14,
+      "heading": "API 请求限流",
+      "mutedContrast": 5.040541323641413,
+      "foreground": "rgb(111, 111, 108)",
+      "background": "rgb(255, 255, 255)",
+      "dark": false
+    },
+    {
+      "name": "mobile-dark",
+      "viewport": 375,
+      "scrollWidth": 375,
+      "panelRight": 351,
+      "panelWidth": 325,
+      "panelScrollWidth": 325,
+      "minInputHeight": 44,
+      "minToggleHeight": 44,
+      "fieldCount": 14,
+      "heading": "API 请求限流",
+      "mutedContrast": 7.603875146838428,
+      "foreground": "rgb(170, 167, 160)",
+      "background": "rgb(21, 21, 21)",
+      "dark": true
+    },
+    {
+      "name": "mobile-landscape",
+      "viewport": 812,
+      "scrollWidth": 812,
+      "panelRight": 780,
+      "panelWidth": 746,
+      "panelScrollWidth": 746,
+      "minInputHeight": 44,
+      "minToggleHeight": 44,
+      "fieldCount": 14,
+      "heading": "API 请求限流",
+      "mutedContrast": 5.040541323641413,
+      "foreground": "rgb(111, 111, 108)",
+      "background": "rgb(255, 255, 255)",
+      "dark": false
+    },
+    {
+      "name": "mobile-large-text",
+      "viewport": 375,
+      "scrollWidth": 507,
+      "panelRight": 327,
+      "panelWidth": 277,
+      "panelScrollWidth": 277,
+      "minInputHeight": 72,
+      "minToggleHeight": 48,
+      "fieldCount": 14,
+      "heading": "API 请求限流",
+      "mutedContrast": 5.040541323641413,
+      "foreground": "rgb(111, 111, 108)",
+      "background": "rgb(255, 255, 255)",
+      "dark": false
+    },
+    {
+      "name": "desktop-light",
+      "viewport": 1440,
+      "scrollWidth": 1440,
+      "panelRight": 1408,
+      "panelWidth": 1312,
+      "panelScrollWidth": 1312,
+      "minInputHeight": 44,
+      "minToggleHeight": 44,
+      "fieldCount": 14,
+      "heading": "API 请求限流",
+      "mutedContrast": 5.040541323641413,
+      "foreground": "rgb(111, 111, 108)",
+      "background": "rgb(255, 255, 255)",
+      "dark": false
+    }
+  ],
+  "checks": {
+    "go-race": {
+      "exit_code": 0,
+      "seconds": 16.364
+    },
+    "web-build": {
+      "exit_code": 0,
+      "seconds": 29.412
+    },
+    "limiter-benchmark": {
+      "exit_code": 0,
+      "seconds": 4.724
+    },
+    "browser-settings-smoke": {
+      "exit_code": 0,
+      "seconds": 6.716
+    },
+    "api-snapshot": {
+      "exit_code": 0,
+      "seconds": 2.722
+    },
+    "browser-layout-probe": {
+      "exit_code": 0,
+      "seconds": 0.894
+    },
+    "go-build": {
+      "exit_code": 0,
+      "seconds": 0.765
+    },
+    "browser-language-yyds": {
+      "exit_code": 0,
+      "seconds": 2.158
+    },
+    "go-lint": {
+      "exit_code": 0,
+      "seconds": 36.638
+    },
+    "http-final": {
+      "exit_code": 0,
+      "seconds": 11.472
+    },
+    "browser-responsive": {
+      "exit_code": 0,
+      "seconds": 5.155
+    },
+    "postgres-load": {
+      "exit_code": 0,
+      "seconds": 25.271
+    },
+    "go-coverage": {
+      "exit_code": 0,
+      "seconds": 34.543
+    }
+  }
+}

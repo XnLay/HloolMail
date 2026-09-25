@@ -246,6 +246,10 @@ Web Console 面向人工管理，使用 `gptmail_session` Cookie/session。它�
 
 Web Console 中创建 API Key 后，明文只会显示一次；后续只能看到前缀或重新 reveal。
 
+### API 请求限流
+
+管理员可在“管理后台 → API 接入 → API 请求限流”调整来源 IP、单实例入口及五类业务接口的速率和突发额度。设置持久化，保存后本实例立即生效，其他实例默认每 5 秒同步；令牌计数仍按实例独立。速率拒绝返回 `429` 和 `Retry-After`，不消耗每日或累计调用配额。完整规则、恢复方式和压测命令见 [API 请求限流配置与运维](docs/api-rate-limits.md)。
+
 ### 权限边界
 
 普通工作区页面（收件箱、Dashboard、域名、API Key、Webhooks、Share Links）只展示和操作当前登录账号可见的数据；即使账号是管理员，进入这些普通页面时也不会自动切到全局视角。

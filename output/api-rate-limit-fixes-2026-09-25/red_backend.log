@@ -1,0 +1,16 @@
+--- FAIL: TestIdleCleanupPreservesLowRateBudget (0.00s)
+    reclamation_test.go:29: allowed 400 requests over 45 minutes, want 102
+--- FAIL: TestCapacityPreservesUnrefilledBuckets (0.00s)
+    reclamation_test.go:43: capacity must reject without discarding debt: {Allowed:true RetryAfter:0s}
+--- FAIL: TestCleanupRetainsDebtAndReclaimsRefilledBuckets (0.00s)
+    reclamation_test.go:66: cleanup must keep debt while reclaiming fully replenished idle buckets
+FAIL
+FAIL	gptmail/internal/ratelimit	0.002s
+
+2026/09/25 19:15:04 [31;1m/home/x/project/github/HloolMail/internal/db/db.go:517 [35;1mrecord not found
+[0m[33m[0.069ms] [34;1m[rows:0][0m SELECT * FROM `login_settings` ORDER BY `login_settings`.`id` LIMIT 1
+--- FAIL: TestAPIRateLimitSaturatedInstanceDoesNotAllocateSourceBuckets (0.04s)
+    api_rate_limit_capacity_test.go:27: saturated instance allocated source buckets: before=3 after=21
+FAIL
+FAIL	gptmail/internal/http	0.083s
+FAIL

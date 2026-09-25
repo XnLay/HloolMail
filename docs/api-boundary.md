@@ -61,6 +61,12 @@ backend worker when `WEBHOOKS_ENABLED` is not `false`.
 - `webhook`: `/api/webhooks*` 是当前账号的 session-only 管理面，`scope=all` 只能表示当前 owner 可见范围内的全部事件，不表示全站事件。
 - `domain`: `/api/domains*` 是当前账号的域名管理面；管理员在普通域名页也只看和操作自己 owner 范围内的域名。`GET /api/domains/available` 只返回可选公共域名和当前 actor 可访问的私有域名。跨用户域名健康、MX 检测和处置走 `/api/admin/domain-health`、`/api/admin/domains/:id/*`、`/api/admin/domain-check-*`。
 
+## Administrator Rate Limit Settings
+
+`GET/PUT /api/admin/rate-limit-settings` is an admin Web-session endpoint, outside API-key automation. PUT requires a complete configuration and the current revision; stale updates return `409`. Configuration and the `api_rate_limit_settings.update` audit commit atomically. Browser writes must be same-origin; ordinary sessions, API keys, and legacy admin tokens receive `403`.
+
+API-key requests pass configurable IP ingress, per-instance ingress, then per-key business limits before consuming call quota. A rate rejection returns `429` with `Retry-After` and does not consume quota or create normal usage logs. Session, admin, login, public-share and SSE protection remains independent. Replicas share configuration but maintain separate counters. See [API rate limit operations](api-rate-limits.md).
+
 ## API-key Automation Surface
 
 These endpoints are allowed in the API-key automation OpenAPI group:

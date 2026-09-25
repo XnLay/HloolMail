@@ -1,0 +1,3 @@
+ok  	gptmail/internal/ratelimit	0.004s
+ok  	gptmail/internal/apiratelimit	7.041s
+ok  	gptmail/internal/http	4.590s

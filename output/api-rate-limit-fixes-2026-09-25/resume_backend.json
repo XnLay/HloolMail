@@ -1,0 +1,15 @@
+{
+  "check": "backend",
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-timeout",
+    "45s",
+    "./internal/ratelimit",
+    "./internal/apiratelimit",
+    "./internal/http"
+  ],
+  "exit_code": 0,
+  "seconds": 22.914
+}

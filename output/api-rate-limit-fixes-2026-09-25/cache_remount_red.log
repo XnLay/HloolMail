@@ -1,0 +1,32 @@
+
+ RUN  v4.1.8 /home/x/project/github/HloolMail/web
+
+ ❯ src/features/admin/components/APIRateLimitSettingsPanel.test.tsx (15 tests | 1 failed | 14 skipped) 350ms
+     × keeps a newer snapshot when conflict reload completes with an older response 347ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/features/admin/components/APIRateLimitSettingsPanel.test.tsx > APIRateLimitSettingsPanel > keeps a newer snapshot when conflict reload completes with an older response
+AssertionError: expected 2 to be 3 // Object.is equality
+
+- Expected
++ Received
+
+- 3
++ 2
+
+ ❯ src/features/admin/components/APIRateLimitSettingsPanel.test.tsx:301:7
+    299|     expect(
+    300|       client.getQueryData<APIRateLimitSettings>(queryKeys.admin.rateLi…
+    301|     ).toBe(3);
+       |       ^
+    302|     await interact(() =>
+    303|       root.render(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 14 skipped (15)
+   Start at  19:47:53
+   Duration  13.25s (transform 826ms, setup 62ms, import 1.40s, tests 350ms, environment 10.48s)
