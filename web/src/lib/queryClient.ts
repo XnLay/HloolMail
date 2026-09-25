@@ -12,6 +12,7 @@ const AUTH_PROBE_QUERY_KEY = ['me'] as const;
 const USER_QUERY_ROOTS = new Set([
   'admin-announcements',
   'admin-api-interface-settings',
+  'admin-api-rate-limit-settings',
   'admin-audit-logs',
   'admin-domain-check-runs',
   'admin-domain-check-settings',

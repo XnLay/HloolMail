@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"io/fs"
 	"net/http"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"gptmail/internal/apiratelimit"
 	"gptmail/internal/auth"
 	"gptmail/internal/config"
 	"gptmail/internal/domain"
@@ -47,23 +49,39 @@ func (nfs noDirFS) Open(name string) (http.File, error) {
 }
 
 type Handler struct {
-	Config       config.Config
-	DB           *gorm.DB
-	Resolver     domain.Resolver
-	DNSChecker   domain.DNSChecker
-	APIKeys      auth.APIKeyService
-	Sessions     auth.SessionService
-	Hub          *events.Hub
-	DomainHealth *jobs.DomainHealthJob
-	RateLimiter  *ratelimit.Limiter
-	AuditLogger  *AuditLogger
-	Mailer       mailer.Sender
-	EmailWorker  *emaildelivery.Worker
+	Config            config.Config
+	DB                *gorm.DB
+	Resolver          domain.Resolver
+	DNSChecker        domain.DNSChecker
+	APIKeys           auth.APIKeyService
+	Sessions          auth.SessionService
+	Hub               *events.Hub
+	DomainHealth      *jobs.DomainHealthJob
+	RateLimiter       *ratelimit.Limiter
+	APIRateLimits     *apiratelimit.Service
+	APIKeyRateLimiter *ratelimit.Limiter
+	AuditLogger       *AuditLogger
+	Mailer            mailer.Sender
+	EmailWorker       *emaildelivery.Worker
 
-	rateLimiterOnce sync.Once
+	rateLimiterOnce      sync.Once
+	apiRateLimitProfiles map[string]apiratelimit.Profile
 }
 
 func NewRouter(h *Handler) *gin.Engine {
+	// 生产入口显式注入已加载的服务；独立构建路由时也在监听前完成初始化。
+	if h.APIRateLimits == nil && h.DB != nil {
+		settings, err := apiratelimit.New(context.Background(), h.DB)
+		if err != nil {
+			panic(err)
+		}
+		h.APIRateLimits = settings
+	}
+	// API 来源桶耗尽容量时，管理员和会话保护仍使用独立的存储。
+	if h.APIKeyRateLimiter == nil {
+		h.APIKeyRateLimiter = ratelimit.New()
+	}
+	h.apiRateLimitProfiles = make(map[string]apiratelimit.Profile)
 	if h.Config.DevMode {
 		gin.SetMode(gin.DebugMode)
 	} else {
@@ -122,29 +140,16 @@ func NewRouter(h *Handler) *gin.Engine {
 	authAPI.POST("/user/passkeys/register/start", h.beginPasskeyRegistration)
 	authAPI.POST("/user/passkeys/register/finish", h.finishPasskeyRegistration)
 	authAPI.DELETE("/user/passkeys/:id", h.deleteUserPasskey)
-	authAPI.GET("/stats", h.stats)
 	authAPI.GET("/stats/timeseries", h.statsTimeseries)
 
-	mailGroup := api.Group("", h.perAPIRateLimit(2, 20))
-	mailGroup.GET("/emails", h.listEmails)
-	mailGroup.GET("/emails/next", h.nextEmail)
-	mailGroup.GET("/email/:id", h.getEmail)
-	mailGroup.PATCH("/email/:id/read", h.markEmailRead)
-	mailGroup.DELETE("/email/:id", h.deleteEmail)
-	mailGroup.DELETE("/emails/clear", h.clearEmails)
-	mailGroup.GET("/mailboxes", h.listMailboxes)
-	mailGroup.GET("/mailboxes/stats", h.mailboxStats)
-	mailGroup.DELETE("/mailboxes/:id", h.deleteMailbox)
+	h.registerAutomationRoutes(api, h.nativeAutomationRoutes())
 	api.GET("/inbox-stream", h.perAPIRateLimit(1.0/6, 3), h.inboxStream)
-
-	api.POST("/generate-email", h.perAPIRateLimit(1, 10), h.generateEmail)
 
 	domainGroup := api.Group("", h.perAPIRateLimit(0.5, 5))
 	domainGroup.POST("/domains/request", h.requestDomain)
 	domainGroup.POST("/domains/batch-request", h.batchRequestDomain)
 	domainGroup.POST("/domains/check-mx", h.perAPIRateLimit(1.0/6, 2), h.checkMX)
 	domainGroup.GET("/domains", h.listDomains)
-	domainGroup.GET("/domains/available", h.availableDomains)
 	domainGroup.GET("/domains/:id", h.getDomain)
 	domainGroup.PATCH("/domains/:id", h.patchDomain)
 	domainGroup.POST("/domains/:id/mx-auto-retry", h.setDomainMXAutoRetry)
@@ -216,6 +221,8 @@ func NewRouter(h *Handler) *gin.Engine {
 	adminGroup.POST("/admin/login-settings/test-email", h.testAdminLoginSettingsEmail)
 	adminGroup.GET("/admin/api-interface-settings", h.adminAPIInterfaceSettings)
 	adminGroup.PATCH("/admin/api-interface-settings", h.patchAdminAPIInterfaceSettings)
+	adminGroup.GET("/admin/rate-limit-settings", h.adminRateLimitSettings)
+	adminGroup.PUT("/admin/rate-limit-settings", h.updateAdminRateLimitSettings)
 	adminGroup.GET("/admin/quota-settings", h.adminQuotaSettings)
 	adminGroup.PATCH("/admin/quota-settings", h.patchAdminQuotaSettings)
 	adminGroup.GET("/admin/share-links", h.listAdminShareLinks)
@@ -231,20 +238,8 @@ func NewRouter(h *Handler) *gin.Engine {
 	adminGroup.POST("/admin/announcements", h.adminCreateAnnouncement)
 	adminGroup.DELETE("/admin/announcements/:id", h.adminDeleteAnnouncement)
 
-	yyds := router.Group("/yyds/v1", h.yydsCompatibilityMiddleware(), h.perAPIRateLimit(2, 20))
-	yyds.GET("/domains", h.yydsListDomains)
-	yyds.POST("/accounts", h.yydsCreateAccount)
-	yyds.POST("/accounts/wildcard", h.yydsCreateWildcardAccount)
-	yyds.POST("/token", h.yydsUnsupportedTempToken)
-	yyds.GET("/accounts/me", h.yydsUnsupportedTempToken)
-	yyds.GET("/accounts/:id", h.yydsGetAccount)
-	yyds.DELETE("/accounts/:id", h.yydsDeleteAccount)
-	yyds.GET("/messages", h.yydsListMessages)
-	yyds.POST("/messages/mark-read", h.yydsMarkMailboxRead)
-	yyds.GET("/messages/:id", h.yydsGetMessage)
-	yyds.PATCH("/messages/:id", h.yydsPatchMessage)
-	yyds.DELETE("/messages/:id", h.yydsDeleteMessage)
-	yyds.GET("/sources/:id", h.yydsGetMessageSource)
+	yyds := router.Group("/yyds/v1", h.yydsCompatibilityMiddleware())
+	h.registerAutomationRoutes(yyds, h.yydsAutomationRoutes())
 
 	embeddedFrontend, hasEmbeddedFrontend := frontend.Embedded()
 	mountFrontend(router, h.Config.FrontendDist, embeddedFrontend, hasEmbeddedFrontend)

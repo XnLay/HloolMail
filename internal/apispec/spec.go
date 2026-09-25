@@ -78,8 +78,14 @@ type OpenAPIRequestBody struct {
 }
 
 type OpenAPIResponse struct {
-	Description string                  `json:"description" yaml:"description"`
-	Content     map[string]MediaContent `json:"content,omitempty" yaml:"content,omitempty"`
+	Description string                   `json:"description" yaml:"description"`
+	Content     map[string]MediaContent  `json:"content,omitempty" yaml:"content,omitempty"`
+	Headers     map[string]OpenAPIHeader `json:"headers,omitempty" yaml:"headers,omitempty"`
+}
+
+type OpenAPIHeader struct {
+	Description string `json:"description" yaml:"description"`
+	Schema      Schema `json:"schema" yaml:"schema"`
 }
 
 type MediaContent struct {
@@ -807,6 +813,17 @@ func openAPIResponses(op Operation) map[string]OpenAPIResponse {
 				"application/json": {Schema: schemaRef("ErrorEnvelope")},
 			},
 		}
+	}
+	if op.Auth == AuthAPIKey {
+		response := responses["429"]
+		response.Description = apiRateLimitGuide
+		response.Headers = map[string]OpenAPIHeader{
+			"Retry-After": {
+				Description: "仅速率拒绝时返回，表示至少等待的整数秒数；配额耗尽时不返回。",
+				Schema:      Schema{"type": "integer", "minimum": 1},
+			},
+		}
+		responses["429"] = response
 	}
 	return responses
 }

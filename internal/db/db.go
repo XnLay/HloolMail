@@ -186,6 +186,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.AuditLog{},
 		&models.SystemQuotaSettings{},
 		&models.APIInterfaceSettings{},
+		&models.APIRateLimitSettings{},
 		&models.LoginSettings{},
 	); err != nil {
 		return err

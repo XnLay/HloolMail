@@ -4432,7 +4432,7 @@ func httpTestDB(t *testing.T) *gorm.DB {
 		t.Fatal(err)
 	}
 	sqlDB.SetMaxOpenConns(1)
-	if err := db.AutoMigrate(&models.User{}, &models.PendingRegistration{}, &models.RegistrationCaptcha{}, &models.OAuthIdentity{}, &models.OAuthProviderSetting{}, &models.Domain{}, &models.Mailbox{}, &models.Message{}, &models.MessageAttachment{}, &models.MessageDailyStat{}, &models.ShareLink{}, &models.ShareLinkAccessLog{}, &models.WebhookEndpoint{}, &models.WebhookDelivery{}, &models.EmailDelivery{}, &models.APIKey{}, &models.SessionToken{}, &models.APIUsageLog{}, &models.Notification{}, &models.Announcement{}, &models.AnnouncementRead{}, &models.AuditLog{}, &models.SystemQuotaSettings{}, &models.APIInterfaceSettings{}, &models.LoginSettings{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.PendingRegistration{}, &models.RegistrationCaptcha{}, &models.OAuthIdentity{}, &models.OAuthProviderSetting{}, &models.Domain{}, &models.Mailbox{}, &models.Message{}, &models.MessageAttachment{}, &models.MessageDailyStat{}, &models.ShareLink{}, &models.ShareLinkAccessLog{}, &models.WebhookEndpoint{}, &models.WebhookDelivery{}, &models.EmailDelivery{}, &models.APIKey{}, &models.SessionToken{}, &models.APIUsageLog{}, &models.Notification{}, &models.Announcement{}, &models.AnnouncementRead{}, &models.AuditLog{}, &models.SystemQuotaSettings{}, &models.APIInterfaceSettings{}, &models.APIRateLimitSettings{}, &models.LoginSettings{}); err != nil {
 		t.Fatal(err)
 	}
 	return db

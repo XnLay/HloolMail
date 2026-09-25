@@ -1012,6 +1012,52 @@ const enUS: typeof zhCN = {
       basePathLabel: 'Base path',
       scopeNote: 'When enabled, this interface can be called at /yyds/v1.'
     },
+    rateLimits: {
+      title: 'API request limits',
+      description:
+        'Control API key request rates. Login and admin actions have separate protection. Daily and lifetime quotas are managed separately.',
+      preAuthTitle: 'Ingress protection',
+      preAuthDescription:
+        'Limit attempts before API key authentication. Keys from the same IP share its allowance, with an additional instance-wide allowance for each endpoint.',
+      businessTitle: 'Endpoint limits',
+      businessDescription:
+        'Each API key, method and route has its own allowance. Endpoints in a group share settings but keep separate counters.',
+      enabled: 'Enabled',
+      disabled: 'Disabled',
+      rate: 'Requests per second',
+      burst: 'Burst allowance',
+      rateError: 'Enter a finite number between {min} and {max}',
+      burstError: 'Enter a whole number between 1 and {max}',
+      effective: 'Configured ceiling for one IP and key: {rate} requests/sec.',
+      unlimited: 'No request rate limit is enabled for this endpoint.',
+      bottleneck: 'Ingress protection currently constrains this rate.',
+      burstHelp:
+        'Burst is the allowance that can accumulate for immediate use, not a concurrent connection limit. Other callers and server capacity affect actual throughput.',
+      scopeHelp:
+        'Different query parameters or message IDs may share an allowance. Instances share settings but keep separate counters. Configure TRUSTED_PROXIES when using a reverse proxy.',
+      helpLink: 'Read the API guide',
+      save: 'Save request limits',
+      saving: 'Saving…',
+      saved: 'Request limits saved and applied on this instance',
+      discard: 'Discard changes',
+      restoreDefaults: 'Fill defaults',
+      loadError: 'Unable to load request limits. Retry; your current input is preserved.',
+      conflict:
+        'Another administrator updated these settings. Your input is preserved. Load the latest settings before reviewing your changes.',
+      reload: 'Discard changes and load latest settings',
+      updatedBy: 'Last updated by {actor}',
+      applyHelp:
+        'Saved settings apply immediately on this instance. Other instances apply them after their next sync, which runs every 5 seconds by default.',
+      rules: {
+        per_ip: 'Source IP (per endpoint)',
+        per_instance: 'Instance total (per endpoint)',
+        mail: 'Messages and mailboxes',
+        generate_email: 'Generate mailbox',
+        available_domains: 'Available domains',
+        stats: 'Workspace statistics',
+        yyds: 'YYDS compatibility',
+      },
+    },
     quotaAlerts: {
       title: 'Quota Alerts',
       desc: 'Users near public mailbox limits and API keys near API limits appear here',

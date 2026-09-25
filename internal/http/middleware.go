@@ -194,16 +194,6 @@ func isSessionOnlyManagementPath(path string) bool {
 	return false
 }
 
-func (h *Handler) allowAPIKeyAuthAttempt(c *gin.Context) bool {
-	limiter := h.ensureRateLimiter()
-	route := rateLimitRoute(c)
-	ip := c.ClientIP()
-	if !limiter.Allow("api-key-auth:global:"+route, rate.Limit(50), 200) {
-		return false
-	}
-	return limiter.Allow("api-key-auth:ip:"+ip+":"+route, rate.Limit(5), 20)
-}
-
 func (h *Handler) logAPIKeyAuthFailure(c *gin.Context, plain string, err error) {
 	slog.Warn(
 		"api key auth failed",
@@ -216,8 +206,7 @@ func (h *Handler) logAPIKeyAuthFailure(c *gin.Context, plain string, err error) 
 }
 
 func (h *Handler) authenticateAPIKeyRequest(c *gin.Context, plain string) bool {
-	if !h.allowAPIKeyAuthAttempt(c) {
-		fail(c, http.StatusTooManyRequests, "rate limit exceeded")
+	if !h.allowAPIKeyIngress(c) {
 		return false
 	}
 	key, err := h.APIKeys.Authenticate(plain)
@@ -237,6 +226,10 @@ func (h *Handler) authenticateAPIKeyRequest(c *gin.Context, plain string) bool {
 			return false
 		}
 		c.Set(apiKeyUserContext, &owner)
+	}
+	c.Set(apiKeyContext, key)
+	if !h.allowAPIKeyBusiness(c, key) {
+		return false
 	}
 	if err := h.APIKeys.Consume(key); err != nil {
 		status := http.StatusTooManyRequests
@@ -260,7 +253,6 @@ func (h *Handler) authenticateAPIKeyRequest(c *gin.Context, plain string) bool {
 		IP:        c.ClientIP(),
 		UserAgent: c.Request.UserAgent(),
 	})
-	c.Set(apiKeyContext, key)
 	return true
 }
 
@@ -367,7 +359,8 @@ func (h *Handler) cors() gin.HandlerFunc {
 			c.Header("Access-Control-Allow-Credentials", "true")
 			c.Header("Vary", "Origin")
 			c.Header("Access-Control-Allow-Headers", h.corsAllowedHeaders())
-			c.Header("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
+			c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+			c.Header("Access-Control-Expose-Headers", "Retry-After")
 			if c.Request.Method == http.MethodOptions {
 				c.AbortWithStatus(http.StatusNoContent)
 				return
@@ -458,6 +451,11 @@ func requestOrigin(c *gin.Context) *url.URL {
 
 func (h *Handler) perAPIRateLimit(limit rate.Limit, burst int) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// API Key 在统一鉴权链路中完成动态限流和配额扣减，这里仅处理会话/匿名访问。
+		if currentAPIKey(c) != nil {
+			c.Next()
+			return
+		}
 		identifier := h.rateLimitSubject(c)
 		if identifier == "" {
 			c.Next()

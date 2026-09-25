@@ -37,7 +37,7 @@ func TestLimiterEvictsOldestAtCapacity(t *testing.T) {
 	}
 }
 
-func TestLimiterEvictsExpiredBeforeOldest(t *testing.T) {
+func TestLimiterCapacityReclaimsOnlyOneSafeBucket(t *testing.T) {
 	now := time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC)
 	limiter := NewWithOptions(Options{
 		MaxEntries: 3,
@@ -60,8 +60,8 @@ func TestLimiterEvictsExpiredBeforeOldest(t *testing.T) {
 	if !limiter.Allow("new", rate.Inf, 1) {
 		t.Fatal("Allow(new key) = false, want true")
 	}
-	if got := limiter.Len(); got != 2 {
-		t.Fatalf("len after expired cleanup = %d, want 2", got)
+	if got := limiter.Len(); got != 3 {
+		t.Fatalf("len after bounded capacity cleanup = %d, want 3", got)
 	}
 	if _, exists := limiter.entries["fresh"]; !exists {
 		t.Fatal("fresh entry was removed")

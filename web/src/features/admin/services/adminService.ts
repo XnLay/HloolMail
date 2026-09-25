@@ -1,4 +1,5 @@
 import { api, patchJSON, postJSON, type PaginatedResponse } from '../../../api';
+import type { APIRateLimitSettings, UpdateAPIRateLimitSettings } from '../../../types/rateLimits';
 import type {
   AdminDomainHealth,
   AdminQuotaAlert,
@@ -7,13 +8,20 @@ import type {
   DomainCheckRun,
   DomainCheckRunsPage,
   DomainCheckSettings,
-  TimeseriesStats
+  TimeseriesStats,
 } from '../../../types';
 
 export const DOMAIN_HEALTH_PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 export const DOMAIN_HEALTH_MODE_OPTIONS = ['all', 'public', 'private'] as const;
 export const DOMAIN_HEALTH_STATUS_OPTIONS = ['all', 'active', 'inactive'] as const;
-export const DOMAIN_HEALTH_MX_OPTIONS = ['all', 'verified', 'failed', 'wildcard_failed', 'unchecked', 'stale'] as const;
+export const DOMAIN_HEALTH_MX_OPTIONS = [
+  'all',
+  'verified',
+  'failed',
+  'wildcard_failed',
+  'unchecked',
+  'stale',
+] as const;
 export const DOMAIN_HEALTH_SEVERITY_OPTIONS = ['all', 'critical', 'warning', 'ok'] as const;
 export const ADMIN_TIMESERIES_RANGE_OPTIONS = [7, 30, 90] as const;
 
@@ -42,7 +50,7 @@ export const DEFAULT_DOMAIN_HEALTH_FILTERS: DomainHealthFilters = {
   mode: 'all',
   status: 'all',
   mx: 'all',
-  severity: 'all'
+  severity: 'all',
 };
 
 export function fetchAdminStats() {
@@ -53,12 +61,21 @@ export function fetchAdminTimeseries(range: AdminTimeseriesRangeValue) {
   return api<TimeseriesStats>(`/api/admin/stats/timeseries?days=${range}`);
 }
 
-export function fetchAdminDomainHealth(filters: DomainHealthFilters, search: string, page: number, perPage: number) {
-  return api<PaginatedResponse<AdminDomainHealth>>(`/api/admin/domain-health?${buildDomainHealthQuery(filters, search, page, perPage)}`);
+export function fetchAdminDomainHealth(
+  filters: DomainHealthFilters,
+  search: string,
+  page: number,
+  perPage: number
+) {
+  return api<PaginatedResponse<AdminDomainHealth>>(
+    `/api/admin/domain-health?${buildDomainHealthQuery(filters, search, page, perPage)}`
+  );
 }
 
 export function fetchAdminQuotaAlerts(page: number, perPage: number) {
-  return api<PaginatedResponse<AdminQuotaAlert>>(`/api/admin/quota-alerts?page=${page}&per_page=${perPage}`);
+  return api<PaginatedResponse<AdminQuotaAlert>>(
+    `/api/admin/quota-alerts?page=${page}&per_page=${perPage}`
+  );
 }
 
 export function fetchDomainCheckSettings() {
@@ -81,8 +98,21 @@ export function fetchAPIInterfaceSettings() {
   return api<APIInterfaceSettings>('/api/admin/api-interface-settings');
 }
 
-export function saveAPIInterfaceSettings(payload: Pick<APIInterfaceSettings, 'yyds_compatibility_enabled'>) {
+export function saveAPIInterfaceSettings(
+  payload: Pick<APIInterfaceSettings, 'yyds_compatibility_enabled'>
+) {
   return patchJSON<APIInterfaceSettings>('/api/admin/api-interface-settings', payload);
+}
+
+export function fetchAPIRateLimitSettings(signal: AbortSignal) {
+  return api<APIRateLimitSettings>('/api/admin/rate-limit-settings', { signal });
+}
+
+export function saveAPIRateLimitSettings(payload: UpdateAPIRateLimitSettings) {
+  return api<APIRateLimitSettings>('/api/admin/rate-limit-settings', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
 }
 
 export function recheckDomain(domain: AdminDomainHealth) {
@@ -97,10 +127,15 @@ export async function deleteAdminDomain(domain: AdminDomainHealth) {
   await api(`/api/admin/domains/${domain.id}`, { method: 'DELETE' });
 }
 
-export function buildDomainHealthQuery(filters: DomainHealthFilters, search: string, page: number, perPage: number) {
+export function buildDomainHealthQuery(
+  filters: DomainHealthFilters,
+  search: string,
+  page: number,
+  perPage: number
+) {
   const params = new URLSearchParams({
     page: String(page),
-    per_page: String(perPage)
+    per_page: String(perPage),
   });
   if (search.trim()) params.set('q', search.trim());
   if (filters.mode !== 'all') params.set('mode', filters.mode);

@@ -1010,6 +1010,51 @@ const zhCN = {
       basePathLabel: '基础路径',
       scopeNote: '开启后支持使用这个接口调用，接口地址为 /yyds/v1。'
     },
+    rateLimits: {
+      title: 'API 请求限流',
+      description:
+        '管理 API Key 调用速率。登录和后台操作使用独立保护，每日及累计调用额度单独计算。',
+      preAuthTitle: '入口保护',
+      preAuthDescription:
+        '在校验 API Key 前限制请求尝试。相同来源 IP 的所有 Key 共享 IP 额度，每个接口另有单实例合计额度。',
+      businessTitle: '业务接口限流',
+      businessDescription:
+        '每个 API Key、请求方法和路由独立计数。组内接口共享配置数值，各自使用独立额度。',
+      enabled: '已启用',
+      disabled: '已停用',
+      rate: '每秒请求数',
+      burst: '突发额度',
+      rateError: '请输入 {min} 到 {max} 之间的有效数值',
+      burstError: '请输入 1 到 {max} 之间的整数',
+      effective: '单 IP、单 Key 的配置上限：{rate} 次/秒。',
+      unlimited: '此接口未启用请求速率限制。',
+      bottleneck: '当前入口保护限制了可用速率。',
+      burstHelp:
+        '突发额度是可积累并立即使用的请求次数，不等于并发连接数。其他调用者及服务承载能力会影响实际吞吐。',
+      scopeHelp:
+        '查询参数或具体邮件 ID 不同仍可能共用额度。多实例共享配置，但计数独立。反向代理部署请正确配置 TRUSTED_PROXIES。',
+      helpLink: '查看 API 使用说明',
+      save: '保存限流设置',
+      saving: '正在保存…',
+      saved: '限流设置已保存并在本实例生效',
+      discard: '撤销更改',
+      restoreDefaults: '填入默认值',
+      loadError: '无法读取限流设置，请重试。当前输入会保留。',
+      conflict: '其他管理员已更新设置。当前输入已保留，请加载最新设置后重新检查修改。',
+      reload: '放弃当前修改并加载最新设置',
+      updatedBy: '最近更新：{actor}',
+      applyHelp:
+        '保存后本实例立即采用新设置，其他实例在下一轮同步完成后生效，默认每 5 秒同步一次。',
+      rules: {
+        per_ip: '单来源 IP（每个接口）',
+        per_instance: '单实例合计（每个接口）',
+        mail: '邮件与邮箱',
+        generate_email: '生成邮箱',
+        available_domains: '可用域名',
+        stats: '工作区统计',
+        yyds: 'YYDS 兼容接口',
+      },
+    },
     quotaAlerts: {
       title: '额度预警',
       desc: '用户接近公开邮箱额度、API Key 接近 API 额度时会出现在这里',

@@ -4,9 +4,11 @@ import type {
   AdminDomainHealth,
   APIInterfaceSettings,
   DomainCheckRun,
-  DomainCheckSettings
+  DomainCheckSettings,
 } from '../../../types';
 import { queryKeys } from '../../../lib/queryKeys';
+import type { APIRateLimitSettings, UpdateAPIRateLimitSettings } from '../../../types/rateLimits';
+import { shareRateLimitSettings } from '../utils/rateLimitSettingsCache';
 import {
   deleteAdminDomain,
   fetchAdminDomainHealth,
@@ -14,16 +16,18 @@ import {
   fetchAdminStats,
   fetchAdminTimeseries,
   fetchAPIInterfaceSettings,
+  fetchAPIRateLimitSettings,
   fetchDomainCheckRuns,
   fetchDomainCheckSettings,
   recheckDomain,
   runDomainCheck,
   saveAPIInterfaceSettings,
+  saveAPIRateLimitSettings,
   saveDomainCheckSettings,
   updateDomainMode,
   type AdminTimeseriesRangeValue,
   type DomainCheckSettingsPayload,
-  type DomainHealthFilters
+  type DomainHealthFilters,
 } from '../services/adminService';
 
 type MutationOptions<TData, TVariables> = UseMutationOptions<TData, Error, TVariables>;
@@ -33,7 +37,7 @@ export function useAdminStatsQuery() {
     queryKey: queryKeys.admin.stats,
     queryFn: fetchAdminStats,
     retry: false,
-    staleTime: 30_000
+    staleTime: 30_000,
   });
 }
 
@@ -42,16 +46,21 @@ export function useAdminTimeseriesQuery(range: AdminTimeseriesRangeValue) {
     queryKey: queryKeys.admin.timeseries(range),
     queryFn: () => fetchAdminTimeseries(range),
     retry: false,
-    staleTime: 30_000
+    staleTime: 30_000,
   });
 }
 
-export function useAdminDomainHealthQuery(filters: DomainHealthFilters, search: string, page: number, perPage: number) {
+export function useAdminDomainHealthQuery(
+  filters: DomainHealthFilters,
+  search: string,
+  page: number,
+  perPage: number
+) {
   return useQuery({
     queryKey: queryKeys.admin.domainHealth(page, perPage, search, filters),
     queryFn: () => fetchAdminDomainHealth(filters, search, page, perPage),
     retry: false,
-    staleTime: 30_000
+    staleTime: 30_000,
   });
 }
 
@@ -60,7 +69,7 @@ export function useAdminQuotaAlertsQuery(page: number, perPage: number) {
     queryKey: queryKeys.admin.quotaAlerts(page, perPage),
     queryFn: () => fetchAdminQuotaAlerts(page, perPage),
     retry: false,
-    staleTime: 30_000
+    staleTime: 30_000,
   });
 }
 
@@ -70,7 +79,7 @@ export function useDomainCheckSettingsQuery() {
     queryFn: fetchDomainCheckSettings,
     retry: false,
     staleTime: 30_000,
-    refetchInterval: (query) => query.state.data?.last_run?.status === 'running' ? 5000 : false
+    refetchInterval: (query) => (query.state.data?.last_run?.status === 'running' ? 5000 : false),
   });
 }
 
@@ -80,21 +89,28 @@ export function useDomainCheckRunsQuery(page: number, perPage: number) {
     queryFn: () => fetchDomainCheckRuns(page, perPage),
     retry: false,
     staleTime: 30_000,
-    refetchInterval: (query) => query.state.data?.runs?.some((run: DomainCheckRun) => run.status === 'running') ? 5000 : false
+    refetchInterval: (query) =>
+      query.state.data?.runs?.some((run: DomainCheckRun) => run.status === 'running')
+        ? 5000
+        : false,
   });
 }
 
-export function useSaveDomainCheckSettingsMutation(options?: MutationOptions<DomainCheckSettings, DomainCheckSettingsPayload>) {
+export function useSaveDomainCheckSettingsMutation(
+  options?: MutationOptions<DomainCheckSettings, DomainCheckSettingsPayload>
+) {
   return useMutation({
     mutationFn: saveDomainCheckSettings,
-    ...options
+    ...options,
   });
 }
 
-export function useRunDomainCheckMutation(options?: MutationOptions<{ run: DomainCheckRun; reused: boolean }, void>) {
+export function useRunDomainCheckMutation(
+  options?: MutationOptions<{ run: DomainCheckRun; reused: boolean }, void>
+) {
   return useMutation({
     mutationFn: runDomainCheck,
-    ...options
+    ...options,
   });
 }
 
@@ -103,34 +119,57 @@ export function useAPIInterfaceSettingsQuery() {
     queryKey: queryKeys.admin.apiInterfaceSettings,
     queryFn: fetchAPIInterfaceSettings,
     retry: false,
-    staleTime: 30_000
+    staleTime: 30_000,
   });
 }
 
-export function useSaveAPIInterfaceSettingsMutation(options?: MutationOptions<APIInterfaceSettings, Pick<APIInterfaceSettings, 'yyds_compatibility_enabled'>>) {
+export function useSaveAPIInterfaceSettingsMutation(
+  options?: MutationOptions<
+    APIInterfaceSettings,
+    Pick<APIInterfaceSettings, 'yyds_compatibility_enabled'>
+  >
+) {
   return useMutation({
     mutationFn: saveAPIInterfaceSettings,
-    ...options
+    ...options,
   });
+}
+
+export function useAPIRateLimitSettingsQuery() {
+  return useQuery({
+    queryKey: queryKeys.admin.rateLimitSettings,
+    queryFn: ({ signal }) => fetchAPIRateLimitSettings(signal),
+    structuralSharing: shareRateLimitSettings,
+    retry: false,
+    staleTime: 30_000,
+  });
+}
+
+export function useSaveAPIRateLimitSettingsMutation(
+  options?: MutationOptions<APIRateLimitSettings, UpdateAPIRateLimitSettings>
+) {
+  return useMutation({ mutationFn: saveAPIRateLimitSettings, ...options });
 }
 
 export function useRecheckDomainMutation(options?: MutationOptions<unknown, AdminDomainHealth>) {
   return useMutation({
     mutationFn: recheckDomain,
-    ...options
+    ...options,
   });
 }
 
-export function useUpdateDomainModeMutation(options?: MutationOptions<unknown, { domain: AdminDomainHealth; mode: AdminDomainHealth['mode'] }>) {
+export function useUpdateDomainModeMutation(
+  options?: MutationOptions<unknown, { domain: AdminDomainHealth; mode: AdminDomainHealth['mode'] }>
+) {
   return useMutation({
     mutationFn: ({ domain, mode }) => updateDomainMode(domain, mode),
-    ...options
+    ...options,
   });
 }
 
 export function useDeleteAdminDomainMutation(options?: MutationOptions<void, AdminDomainHealth>) {
   return useMutation({
     mutationFn: deleteAdminDomain,
-    ...options
+    ...options,
   });
 }

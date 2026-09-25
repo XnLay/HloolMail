@@ -13,6 +13,18 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: ci-postgres-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -41,6 +53,11 @@ jobs:
       - name: Run Go tests with coverage
         run: go test -coverprofile coverage.out ./...
 
+      - name: Test PostgreSQL rate limit settings
+        env:
+          HLOOLMAIL_TEST_POSTGRES_DSN: postgres://postgres:ci-postgres-password@127.0.0.1:5432/postgres?sslmode=disable
+        run: go test -count=1 -timeout 60s ./internal/apiratelimit -run '^TestPostgres'
+
       - name: Upload Go coverage
         uses: actions/upload-artifact@v4
         with:
@@ -51,7 +68,7 @@ jobs:
       - name: Run race tests for critical packages
         env:
           GIN_MODE: release
-        run: go test -race -timeout 20m ./internal/http ./internal/auth ./internal/webhook ./internal/events ./internal/jobs
+        run: go test -race -timeout 20m ./internal/http ./internal/auth ./internal/webhook ./internal/events ./internal/jobs ./internal/apiratelimit ./internal/ratelimit
 
       - name: Install web dependencies
         working-directory: web

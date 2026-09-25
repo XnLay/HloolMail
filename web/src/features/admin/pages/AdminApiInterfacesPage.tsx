@@ -9,14 +9,11 @@ import { useDirtyNavigationGuard } from '../../../hooks/useDirtyNavigationGuard'
 import type { APIInterfaceSettings } from '../../../types';
 import { InfoTip } from '../../../components/shared';
 import { AdminPageFrame } from '../components/AdminPageFrame';
-import {
-  formFingerprint,
-  isDirtyFromBaseline,
-  queryErrorMessage
-} from '../utils/adminFormatting';
+import { APIRateLimitSettingsPanel } from '../components/APIRateLimitSettingsPanel';
+import { formFingerprint, isDirtyFromBaseline, queryErrorMessage } from '../utils/adminFormatting';
 import {
   useAPIInterfaceSettingsQuery,
-  useSaveAPIInterfaceSettingsMutation
+  useSaveAPIInterfaceSettingsMutation,
 } from '../hooks/useAdminQueries';
 
 type APIInterfaceSettingsForm = {
@@ -27,9 +24,10 @@ export function AdminApiInterfacesPage() {
   const text = useText();
   const queryClient = useQueryClient();
   const apiInterfaceSettings = useAPIInterfaceSettingsQuery();
+  const [rateLimitsDirty, setRateLimitsDirty] = useState(false);
   const saveButtonRef = useRef<HTMLButtonElement | null>(null);
   const [apiInterfaceForm, setAPIInterfaceForm] = useState<APIInterfaceSettingsForm>({
-    yyds_compatibility_enabled: false
+    yyds_compatibility_enabled: false,
   });
   const formRef = useRef(apiInterfaceForm);
   const baselineRef = useRef('');
@@ -56,26 +54,42 @@ export function AdminApiInterfacesPage() {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.auditLogsRoot });
       notifySuccess(text.admin.apiInterfaces.saved, { origin: saveButtonRef.current });
     },
-    onError: (error) => toast.error(error.message)
+    onError: (error) => toast.error(error.message),
   });
 
   const refreshSettings = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.admin.apiInterfaceSettings });
+    queryClient.invalidateQueries({ queryKey: queryKeys.admin.rateLimitSettings });
   };
   const hasSettingsChanges = isDirtyFromBaseline(apiInterfaceForm, baselineRef.current);
-  useDirtyNavigationGuard(hasSettingsChanges && !saveSettings.isPending, text.oauth.unsaved_desc);
+  useDirtyNavigationGuard(
+    (hasSettingsChanges && !saveSettings.isPending) || rateLimitsDirty,
+    text.oauth.unsaved_desc
+  );
 
   return (
     <AdminPageFrame
       title={text.page['admin-api-interfaces']}
-      actions={(
-        <button className="btn-secondary" onClick={refreshSettings} disabled={apiInterfaceSettings.isFetching} aria-label={text.admin.refresh}>
-          <RefreshCw size={16} className={apiInterfaceSettings.isFetching ? 'animate-spin' : ''} aria-hidden="true" />
+      actions={
+        <button
+          className="btn-secondary"
+          onClick={refreshSettings}
+          disabled={apiInterfaceSettings.isFetching}
+          aria-label={text.admin.refresh}
+        >
+          <RefreshCw
+            size={16}
+            className={apiInterfaceSettings.isFetching ? 'animate-spin' : ''}
+            aria-hidden="true"
+          />
           {text.admin.refresh}
         </button>
-      )}
+      }
     >
-      <section className="panel admin-table-panel admin-api-interface-panel" id="admin-api-interfaces">
+      <section
+        className="panel admin-table-panel admin-api-interface-panel"
+        id="admin-api-interfaces"
+      >
         <div className="panel-header admin-panel-header">
           <div>
             <h2>{text.admin.apiInterfaces.title}</h2>
@@ -85,29 +99,60 @@ export function AdminApiInterfacesPage() {
             ref={saveButtonRef}
             className="btn-secondary"
             type="button"
-            onClick={() => saveSettings.mutate({ yyds_compatibility_enabled: apiInterfaceForm.yyds_compatibility_enabled })}
+            onClick={() =>
+              saveSettings.mutate({
+                yyds_compatibility_enabled: apiInterfaceForm.yyds_compatibility_enabled,
+              })
+            }
             disabled={saveSettings.isPending || apiInterfaceSettings.isError || !hasSettingsChanges}
-            title={apiInterfaceSettings.isError ? text.admin.apiInterfaces.settingsError : !hasSettingsChanges ? text.admin.apiInterfaces.saved : undefined}
+            title={
+              apiInterfaceSettings.isError
+                ? text.admin.apiInterfaces.settingsError
+                : !hasSettingsChanges
+                  ? text.admin.apiInterfaces.saved
+                  : undefined
+            }
             aria-label={text.admin.apiInterfaces.save}
             aria-busy={saveSettings.isPending ? 'true' : undefined}
           >
-            {saveSettings.isPending ? <Loader2 size={15} className="animate-spin" aria-hidden="true" /> : <Save size={15} aria-hidden="true" />}
+            {saveSettings.isPending ? (
+              <Loader2 size={15} className="animate-spin" aria-hidden="true" />
+            ) : (
+              <Save size={15} aria-hidden="true" />
+            )}
             {text.admin.apiInterfaces.save}
           </button>
         </div>
         {apiInterfaceSettings.isError && (
           <div className="admin-risk admin-risk-warning" role="alert">
             <ShieldAlert size={16} />
-            <span><small>{queryErrorMessage(apiInterfaceSettings.error, text.admin.apiInterfaces.settingsError)}</small></span>
-            <button className="btn-ghost btn-sm" type="button" onClick={() => apiInterfaceSettings.refetch()} disabled={apiInterfaceSettings.isFetching}>
+            <span>
+              <small>
+                {queryErrorMessage(
+                  apiInterfaceSettings.error,
+                  text.admin.apiInterfaces.settingsError
+                )}
+              </small>
+            </span>
+            <button
+              className="btn-ghost btn-sm"
+              type="button"
+              onClick={() => apiInterfaceSettings.refetch()}
+              disabled={apiInterfaceSettings.isFetching}
+            >
               {text.common.retry}
             </button>
           </div>
         )}
-        <div className="admin-api-interface-grid" aria-busy={apiInterfaceSettings.isLoading ? 'true' : undefined}>
+        <div
+          className="admin-api-interface-grid"
+          aria-busy={apiInterfaceSettings.isLoading ? 'true' : undefined}
+        >
           <div className="admin-api-interface-card">
             <div className="admin-api-interface-title">
-              <span className={`admin-api-interface-mark ${apiInterfaceForm.yyds_compatibility_enabled ? 'admin-api-interface-mark-on' : ''}`}>
+              <span
+                className={`admin-api-interface-mark ${apiInterfaceForm.yyds_compatibility_enabled ? 'admin-api-interface-mark-on' : ''}`}
+              >
                 <KeyRound size={16} aria-hidden="true" />
               </span>
               <span>
@@ -123,7 +168,12 @@ export function AdminApiInterfacesPage() {
               <button
                 type="button"
                 className={`toggle-switch ${apiInterfaceForm.yyds_compatibility_enabled ? 'on' : ''}`}
-                onClick={() => setAPIInterfaceForm((current) => ({ ...current, yyds_compatibility_enabled: !current.yyds_compatibility_enabled }))}
+                onClick={() =>
+                  setAPIInterfaceForm((current) => ({
+                    ...current,
+                    yyds_compatibility_enabled: !current.yyds_compatibility_enabled,
+                  }))
+                }
                 role="switch"
                 aria-checked={apiInterfaceForm.yyds_compatibility_enabled}
                 aria-label={text.admin.apiInterfaces.yydsEnabled}
@@ -141,12 +191,13 @@ export function AdminApiInterfacesPage() {
           </div>
         </div>
       </section>
+      <APIRateLimitSettingsPanel onDirtyChange={setRateLimitsDirty} />
     </AdminPageFrame>
   );
 }
 
 function apiInterfaceFormFromSettings(settings: APIInterfaceSettings): APIInterfaceSettingsForm {
   return {
-    yyds_compatibility_enabled: settings.yyds_compatibility_enabled
+    yyds_compatibility_enabled: settings.yyds_compatibility_enabled,
   };
 }

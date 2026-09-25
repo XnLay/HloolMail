@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"gptmail/internal/apiratelimit"
 	"gptmail/internal/auth"
 	"gptmail/internal/config"
 	"gptmail/internal/db"
@@ -58,6 +59,11 @@ func Run(ctx context.Context) error {
 
 	runCtx, stop := context.WithCancel(ctx)
 	defer stop()
+	apiRateLimits, err := apiratelimit.New(runCtx, database)
+	if err != nil {
+		return err
+	}
+	go apiRateLimits.Run(runCtx)
 
 	hub := events.NewHub()
 	resolver := domain.Resolver{DB: database}
@@ -78,16 +84,17 @@ func Run(ctx context.Context) error {
 	auditLogger := httpapi.NewAuditLogger(database)
 
 	handler := &httpapi.Handler{
-		Config:       cfg,
-		DB:           database,
-		Resolver:     resolver,
-		DNSChecker:   checker,
-		APIKeys:      auth.APIKeyService{DB: database},
-		Sessions:     auth.NewSessionService(cfg.SessionSecret, database),
-		Hub:          hub,
-		DomainHealth: healthJob,
-		RateLimiter:  ratelimit.New(),
-		AuditLogger:  auditLogger,
+		Config:        cfg,
+		DB:            database,
+		Resolver:      resolver,
+		DNSChecker:    checker,
+		APIKeys:       auth.APIKeyService{DB: database},
+		Sessions:      auth.NewSessionService(cfg.SessionSecret, database),
+		Hub:           hub,
+		DomainHealth:  healthJob,
+		RateLimiter:   ratelimit.New(),
+		APIRateLimits: apiRateLimits,
+		AuditLogger:   auditLogger,
 	}
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,

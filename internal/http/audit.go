@@ -139,6 +139,18 @@ func (l *AuditLogger) writeOne(log models.AuditLog) {
 }
 
 func (h *Handler) audit(action, actor, target, metadata string) {
+	log := newAuditLog(action, actor, target, metadata)
+	if h.AuditLogger != nil {
+		h.AuditLogger.Record(log)
+		return
+	}
+	if h.DB != nil {
+		_ = h.DB.Create(&log).Error
+	}
+}
+
+// newAuditLog 复用审计分类；需要原子性的配置操作由调用方在事务内写入。
+func newAuditLog(action, actor, target, metadata string) models.AuditLog {
 	profile := classifyAuditAction(action)
 	log := models.AuditLog{
 		Category:   profile.category,
@@ -154,13 +166,7 @@ func (h *Handler) audit(action, actor, target, metadata string) {
 	if log.Actor == "" {
 		log.Actor = "system"
 	}
-	if h.AuditLogger != nil {
-		h.AuditLogger.Record(log)
-		return
-	}
-	if h.DB != nil {
-		_ = h.DB.Create(&log).Error
-	}
+	return log
 }
 
 func auditLogNeedsDurableFallback(log models.AuditLog) bool {
@@ -177,6 +183,8 @@ func classifyAuditAction(action string) auditProfile {
 		return auditProfile{category: auditCategorySystem, severity: auditSeverityInfo, targetType: "domain_check_run"}
 	case "domain_check_settings.patch":
 		return auditProfile{category: auditCategorySecurity, severity: auditSeverityInfo, targetType: "domain_check_settings"}
+	case "api_rate_limit_settings.update":
+		return auditProfile{category: auditCategorySecurity, severity: auditSeverityWarning, targetType: "api_rate_limit_settings"}
 	case "api_interface_settings.patch":
 		return auditProfile{category: auditCategorySecurity, severity: auditSeverityWarning, targetType: "api_interface_settings"}
 	case "oauth_provider.patch", "login_settings.patch":

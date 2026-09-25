@@ -1,0 +1,100 @@
+.api-rate-limit-settings {
+  min-width: 0;
+  padding: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.api-rate-limit-group {
+  margin: 1.25rem 0;
+}
+
+.api-rate-limit-group > h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+}
+
+.api-rate-limit-group > p,
+.api-rate-limit-hint,
+.api-rate-limit-meta {
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.api-rate-limit-rule {
+  min-width: 0;
+  margin: 0.9rem 0;
+  padding: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+}
+
+.api-rate-limit-rule legend {
+  max-width: 100%;
+  padding: 0 0.3rem;
+  font-weight: 650;
+}
+
+.api-rate-limit-fields {
+  display: grid;
+  grid-template-columns: minmax(6rem, 0.7fr) repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.api-rate-limit-fields label:not(.api-rate-limit-enabled) {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.api-rate-limit-fields .input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  font-size: 1rem;
+}
+
+.api-rate-limit-enabled {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  margin-top: 1.4rem;
+  cursor: pointer;
+}
+
+.api-rate-limit-enabled input {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.api-rate-limit-bottleneck {
+  color: var(--foreground);
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.api-rate-limit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 1.25rem;
+}
+
+@media (max-width: 639px) {
+  .api-rate-limit-fields {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.7rem;
+  }
+
+  .api-rate-limit-enabled {
+    margin-top: 0;
+  }
+
+  .api-rate-limit-actions > button {
+    flex: 1 1 100%;
+    min-height: 44px;
+  }
+}
